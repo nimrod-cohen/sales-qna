@@ -3,10 +3,10 @@
  * Sales Q&A Knowledge Base
  *
  * @wordpress-plugin
- * Plugin Name:   Sales QnA Knowledge Base
+ * Plugin Name:   Sales Q&A Knowledge Base
  * Plugin URI:    https://github.com/nimrod-cohen/sales-qna
  * Description:   Manage a Hebrew Q&A knowledge base for your sales team.
- * Version:       1.0.1
+ * Version:       1.0.0
  * Author:        nimrod-cohen
  * Author URI:    https://github.com/nimrod-cohen/sales-qna
  * License:       GPL-2.0+
@@ -20,9 +20,10 @@ if (!defined('ABSPATH')) {
 
 final class SalesQnA {
   private static $instance = null;
-  private const PLUGIN_SLUG = 'sales-qna';
-  private const TABLE_NAME = 'sales_qna';
+  public const PLUGIN_SLUG = 'sales-qna';
   private const OPENAI_API_KEY = 'openai_api_key';
+  private $db = null;
+  private $dfcx = null;
 
   public static function get_instance() {
     if (null === self::$instance) {
@@ -32,8 +33,8 @@ final class SalesQnA {
   }
 
   private function __construct() {
-    register_activation_hook(__FILE__, [$this, 'install']);
-    register_uninstall_hook(__FILE__, ['SalesQnA', 'uninstall']);
+    register_activation_hook(__FILE__, ['SalesQnADB', 'install']);
+    register_uninstall_hook(__FILE__, ['SalesQnADB', 'uninstall']);
 
     add_action('plugins_loaded', [$this, 'maybe_upgrade_plugin']);
 
@@ -44,6 +45,9 @@ final class SalesQnA {
     add_action('admin_init', function () {
       $updater = new \SalesQnA\GitHubPluginUpdater(__FILE__);
     });
+
+    $this->db = SalesQnADB::get_instance();
+    $this->dfcx = DialogFlowCX::get_instance();
   }
 
   public function register_api_routes() {
@@ -91,7 +95,7 @@ final class SalesQnA {
     return $value !== false ? $value : $default;
   }
 
-  private static function update_option($key, $value, $autoload = null) {
+  public static function update_option($key, $value, $autoload = null) {
     return update_option(self::PLUGIN_SLUG . '_' . $key, $value, $autoload);
   }
 
@@ -109,49 +113,15 @@ final class SalesQnA {
     $stored_version = self::get_option('plugin_version');
 
     if ($stored_version !== $current_version) {
-      $this->run_upgrades($stored_version);
+      $this->db->run_upgrades($stored_version);
       self::update_option('plugin_version', $current_version);
     }
   }
 
-  public function install() {
-    global $wpdb;
-    $table_name = $wpdb->prefix . self::TABLE_NAME;
-    $charset_collate = $wpdb->get_charset_collate();
-
-    $sql = "CREATE TABLE $table_name (
-            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            question TEXT NOT NULL,
-            answer TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) $charset_collate;";
-
-    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-    dbDelta($sql);
-    self::update_option('plugin_version', '1.0.0');
-  }
-
-  private function run_upgrades($old_version) {
-    global $wpdb;
-    $table_name = $wpdb->prefix . self::TABLE_NAME;
-
-    if (version_compare($old_version, '1.0.1', '<')) {
-      $wpdb->query("ALTER TABLE $table_name ADD COLUMN embedding LONGTEXT DEFAULT NULL");
-    }
-  }
-
-  public static function uninstall() {
-    global $wpdb;
-    $table_name = $wpdb->prefix . self::TABLE_NAME;
-    $wpdb->query("DROP TABLE IF EXISTS $table_name");
-
-    delete_option(self::PLUGIN_SLUG . '_plugin_version');
-  }
-
   public function register_admin_page() {
     add_menu_page(
-      'Sales QnA',
-      'Sales QnA',
+      'Sales Q&A',
+      'Sales Q&A',
       'manage_options',
       self::PLUGIN_SLUG,
       [$this, 'render_admin_page'],
@@ -166,48 +136,55 @@ final class SalesQnA {
     $search_term = sanitize_text_field($input['search'] ?? '');
 
     if (!empty($search_term)) {
-      return $this->handle_question($request);
+      $rows = $this->dfcx->find_intent($search_term);
+    } else {
+      $rows = $this->dfcx->get_intents($search_term);
     }
 
-    global $wpdb;
-    $table_name = $wpdb->prefix . self::TABLE_NAME;
-    $rows = $wpdb->get_results("SELECT id, question, answer FROM $table_name ORDER BY question ASC");
+    //this returns an assoc atray of all intent_ids
+    $answers = $this->db->get_all_questions();
+
+    foreach ($rows as &$row) {
+      $row['answer'] = $answers[$row['intent_id']] ?? '';
+    }
+
     return rest_ensure_response($rows);
   }
 
   public function save_question($request) {
-    global $wpdb;
-    $table_name = $wpdb->prefix . self::TABLE_NAME;
-
     $input = $request->get_json_params();
     $question = stripslashes(sanitize_text_field($input['question'] ?? ''));
     $answer = stripslashes(sanitize_textarea_field($input['answer'] ?? ''));
-    $id = intval($input['id'] ?? 0);
-    $embedding = $this->get_openai_embedding($question);
-    $data = ['question' => $question, 'answer' => $answer, 'embedding' => json_encode($embedding)];
+    $intentId = !empty($input['intent_id']) ? $input['intent_id'] : false;
 
-    if ($id > 0) {
-      $wpdb->update($table_name, $data, ['id' => $id]);
+    if (!$intentId) {
+      $intentId = $this->dfcx->add_intent($question);
+      if (!$intentId) {
+        return new WP_Error('invalid_id', 'Invalid ID provided.', ['status' => 400]);
+      }
+      $this->db->add_question($intentId, $answer);
     } else {
-      $wpdb->insert($table_name, $data);
+      $this->db->update_question($intentId, $answer);
     }
 
     return rest_ensure_response(['status' => 'success']);
   }
 
   public function delete_question($request) {
-    global $wpdb;
-    $table_name = $wpdb->prefix . self::TABLE_NAME;
-
     $input = $request->get_json_params();
-    $id = intval($input['id'] ?? 0);
+    $intentId = $input['intent_id'] ?? false;
 
-    if ($id > 0) {
-      $wpdb->delete($table_name, ['id' => $id]);
-      return rest_ensure_response(['status' => 'success']);
+    if (!$intentId) {
+      return new WP_Error('invalid_id', 'Invalid ID provided.', ['status' => 400]);
     }
 
-    return new WP_Error('invalid_id', 'Invalid ID provided.', ['status' => 400]);
+    if ($this->dfcx->delete_intent($intentId)) {
+      $this->db->delete_question($intentId);
+    } else {
+      return new WP_Error('delete_failed', 'Failed to delete question.', ['status' => 500]);
+    }
+
+    return rest_ensure_response(['status' => 'success']);
   }
 
   public function render_admin_page() {
@@ -225,74 +202,15 @@ final class SalesQnA {
 
     include plugin_dir_path(__FILE__) . 'admin/admin.php';
   }
+}
 
-  private function get_openai_embedding($text) {
-    $apiKey = self::get_option(self::OPENAI_API_KEY);
+require_once __DIR__ . '/vendor/autoload.php';
 
-    $response = wp_remote_post('https://api.openai.com/v1/embeddings', [
-      'headers' => [
-        'Content-Type' => 'application/json',
-        'Authorization' => 'Bearer ' . $apiKey
-      ],
-      'body' => json_encode([
-        'input' => $text,
-        'model' => 'text-embedding-3-small'
-      ]),
-      'timeout' => 20
-    ]);
-
-    if (is_wp_error($response)) {
-      return null;
-    }
-
-    $body = json_decode(wp_remote_retrieve_body($response), true);
-    return $body['data'][0]['embedding'] ?? null;
-  }
-
-  public function handle_question($request) {
-    global $wpdb;
-    $table = $wpdb->prefix . self::TABLE_NAME;
-
-    $input = $request->get_json_params();
-    $user_question = sanitize_text_field($input['question']);
-    $embedding = $this->get_openai_embedding($user_question);
-    if (!$embedding) {
-      return new WP_Error('embedding_failed', 'Failed to generate embedding.', ['status' => 500]);
-    }
-
-    $rows = $wpdb->get_results("SELECT id, question, answer, embedding FROM $table WHERE embedding IS NOT NULL");
-
-    $scored = [];
-
-    foreach ($rows as $row) {
-      $stored = json_decode($row->embedding, true);
-      if (!is_array($stored)) {
-        continue;
-      }
-
-      $score = $this->cosine_similarity($embedding, $stored);
-      $scored[] = ['id' => $row->id, 'question' => $row->question, 'answer' => $row->answer, 'score' => $score];
-    }
-
-    // Sort by descending score
-    usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
-
-    return array_slice($scored, 0, 3); // return top 3 matches
-  }
-
-  private function cosine_similarity(array $a, array $b): float {
-    $dot = 0;
-    $magA = 0;
-    $magB = 0;
-
-    for ($i = 0; $i < count($a); $i++) {
-      $dot += $a[$i] * $b[$i];
-      $magA += $a[$i] ** 2;
-      $magB += $b[$i] ** 2;
-    }
-
-    return $magA && $magB ? $dot / (sqrt($magA) * sqrt($magB)) : 0.0;
-  }
+// Include the main plugin classes
+$directory = plugin_dir_path(__FILE__) . '/classes';
+$files = glob($directory . '/*.php');
+foreach ($files as $file) {
+  require_once $file;
 }
 
 // Initialize the plugin

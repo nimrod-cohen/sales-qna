@@ -1,2 +1,4 @@
 1. secure rest api
 2. add question variations
+3. add setting for language instead of RTL
+4. add DialogFlow config settings and remove OpenAI

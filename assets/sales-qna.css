@@ -1,6 +1,7 @@
 :root {
   --highlight-color: yellow;
   --hover-row-color: #f0f0f0;
+  --faded-color: #999;
 }
 
 .sales-qna-header {
@@ -63,6 +64,17 @@ form.rtl-switch {
 }
 
 .sales-qna-questions {
+  .qna-search-bar {
+    width: 100%;
+    display: flex;
+    margin: 10px 0;
+    gap: 10px;
+
+    button#add-question {
+      display: none;
+    }
+  }
+
   mark {
     font-weight: bold;
     background-color: var(--highlight-color);
@@ -74,20 +86,30 @@ form.rtl-switch {
     }
   }
 
-  .qna-table {
+  table.qna-table {
     border-collapse: collapse;
     table-layout: fixed;
     width: 100%;
+
+    tbody tr td span.td-content {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
 
     th,
     td {
       border: 1px solid #ccc;
       padding: 4px 8px;
 
-      &.qna-actions > div {
-        display: flex;
-        height: 100%;
-        align-items: center;
+      span.fallback {
+        content: url('../assets/fallback.svg');
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+
+      &.qna-actions {
         .btn {
           cursor: pointer;
           margin-left: 10px;

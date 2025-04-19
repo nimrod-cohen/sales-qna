@@ -8,11 +8,15 @@ class SalesQnA {
   state = StateManagerFactory();
 
   init = () => {
-    this.state.listen('rows', this.renderTable);
+    this.state.listen('questions', this.renderTable);
     this.reloadQuestions();
     this.state.listen('search', this.reloadQuestions);
+    this.state.listen('show-add-question', this.showAddQuestionButton);
+    this.state.set('show-add-question', false);
 
-    document.getElementById('filter-input').addEventListener('input', this.updateSearch);
+    JSUtils.addGlobalEventListener(document, '#add-question', 'click', this.showAddQuestion);
+
+    document.getElementById('filter-questions').addEventListener('input', this.updateSearch);
 
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', e => {
@@ -35,6 +39,10 @@ class SalesQnA {
     document.querySelectorAll('.tab').forEach(tab => {
       tab.style.display = tab.id === activeTab ? 'block' : 'none';
     });
+  };
+
+  showAddQuestionButton = show => {
+    document.querySelector('#add-question').style.display = show ? 'block' : 'none';
   };
 
   updateSearch = e => {
@@ -60,10 +68,16 @@ class SalesQnA {
   };
 
   showAddQuestion = () => {
-    this.showEditQuestion(null, '', '');
+    const question = document.getElementById('filter-questions')?.value?.trim() || '';
+    if (question.trim().split(/\s+/).filter(Boolean).length <= 3) {
+      window.notifications.show('Please enter a descriptive question', 'error');
+      return;
+    }
+
+    this.showEditQuestion('', question, '');
   };
 
-  showEditQuestion = (id, question, answer) => {
+  showEditQuestion = (intentId, question, answer) => {
     const dir = document.querySelector('#qna-questions').style.direction || 'ltr';
 
     remodaler.show({
@@ -71,20 +85,20 @@ class SalesQnA {
       title: 'Edit Question',
       message: `<div class="modal-content" style="direction:${dir}">
         <form id="edit-question-form">
-          <input type="hidden" name="id" value="${id}">
+          <input type="hidden" name="intent_id" value="${intentId}">
           <label for="qa-question">Question:</label>
-          <input type="text" id="qa-question" name="question" value="${question}" required>
+          <input type="text" id="qa-question" name="question" disabled value="${question}" required>
           <label for="qa-answer">Answer:</label>
           <textarea id="qa-answer" name="answer" rows=10 required>${answer}</textarea>
         </form>`,
       confirmText: 'Save',
       confirm: async data => {
         if (!data.question || !data.answer) {
-          alert('Please fill in all fields.');
+          window.notifications.show('Please fill in all fields.', 'error');
           return false;
         }
 
-        data.id = id;
+        data.intent_id = intentId;
         const res = await fetch('/wp-json/sales-qna/v1/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -93,7 +107,7 @@ class SalesQnA {
 
         if (!res.ok) {
           const error = await res.json();
-          alert(`Error: ${error.message}`);
+          window.notifications.show(error.message, 'error');
         }
         this.reloadQuestions();
       }
@@ -109,7 +123,7 @@ class SalesQnA {
       title: 'Attach/Detach User to affiliate',
       message: `<div class="modal-content">
         <h2>Delete Question</h2>
-        <p>Are you sure you want to delete Q&A #${id}?</p>
+        <p>Are you sure you want to delete this question?</p>
       </div>`,
       type: remodaler.types.FORM,
       confirmText: 'Delete',
@@ -117,12 +131,12 @@ class SalesQnA {
         const res = await fetch('/wp-json/sales-qna/v1/delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id })
+          body: JSON.stringify({ intent_id: id })
         });
 
         if (!res.ok) {
           const error = await res.json();
-          alert(`Error: ${error.message}`);
+          window.notifications.show(error.message, 'error');
         }
         this.reloadQuestions();
       }
@@ -139,56 +153,66 @@ class SalesQnA {
     });
     if (!res.ok) {
       const error = await res.json();
-      alert(`Error: ${error.message}`);
+      window.notifications.show(error.message, 'error');
     } else {
       const data = await res.json();
-      this.state.set('rows', data);
+      this.state.set('questions', data);
     }
   };
 
   renderTable = data => {
-    const tableBody = document.querySelector('table tbody');
+    const tableBody = document.querySelector('table.qna-table tbody');
     tableBody.innerHTML = '';
 
     if (!data || data.length === 0) {
-      tableBody.innerHTML = '<tr class="no-data"><td colspan="4">No questions found.</td></tr>';
+      tableBody.innerHTML = `<tr class="no-data">
+          <td colspan="3">
+            No questions found. 
+          </td>
+        </tr>`;
       return;
     }
 
+    if (1 === data.length && data[0].is_fallback === true) {
+      this.state.set('show-add-question', true);
+    }
+
     data.forEach(item => {
-      const row = document.createElement('tr');
-      row.dataset.id = item.id;
-      row.dataset.question = item.question;
-      row.dataset.answer = item.answer;
+      //round score to maximum 3 digits after the decimal point
+      tableBody.insertAdjacentHTML(
+        'beforeend',
+        `<tr data-id="${item.intent_id}" data-question="${item.question}" data-answer="${item.answer}">
+          <td class='question'><span class='td-content'>${item.question}</span></td>
+          <td>${item.answer}</td>
+          <td class="qna-actions">
+            <span class='td-content'>
+              <span class="btn edit-btn dashicons dashicons-edit"></span>
+              <span class="btn delete-btn dashicons dashicons-trash"></span>
+            </span>
+          </td>
+        </tr>`
+      );
 
-      row.innerHTML = `
-        <td>${item.id}</td>
-        <td>${item.question}</td>
-        <td>${item.answer}</td>
-        <td class="qna-actions">
-          <div>
-            <span class="btn edit-btn dashicons dashicons-edit"></span>
-            <span class="btn delete-btn dashicons dashicons-trash"></span>
-          </div>
-        </td>
-      `;
-
-      tableBody.appendChild(row);
+      const row = document.querySelector('tr[data-id="' + item.intent_id + '"]');
       const search = this.state.get('search') || null;
       if (search) {
-        row.cells[1].innerHTML = this.highlightMatch(row.dataset.question, search);
-        row.cells[2].innerHTML = this.highlightMatch(row.dataset.answer, search);
+        row.querySelector('.question .td-content').innerHTML = this.highlightMatch(row.dataset.question, search);
+        row.cells[1].innerHTML = this.highlightMatch(row.dataset.answer, search);
+      }
+      if (item.is_fallback === true) {
+        row
+          .querySelector('.question .td-content')
+          .insertAdjacentHTML('beforeend', "<span title='fallback intent' class='fallback'></span>");
       }
     });
 
-    document.querySelectorAll('table tbody tr .delete-btn').forEach(btn => {
+    document.querySelectorAll('table.qna-table tbody tr .delete-btn').forEach(btn => {
       btn.addEventListener('click', this.doDeleteQuestion);
     });
 
-    document.querySelectorAll('table tbody tr .edit-btn').forEach(btn => {
+    document.querySelectorAll('table.qna-table tbody tr .edit-btn').forEach(btn => {
       btn.addEventListener('click', this.editQuestionClicked);
     });
-    document.querySelector('#add-question').addEventListener('click', this.showAddQuestion);
   };
 
   highlightMatch = (text, term) => {

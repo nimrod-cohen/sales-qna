@@ -3,7 +3,7 @@ $plugin_version = SalesQnA::version();
 $dir = SalesQnA::get_option('text_direction', 'ltr');
 ?>
 <h1 class='sales-qna-header'>
-  Sales QnA Manager
+  Sales Q&A Manager
   <span style="font-size: 14px; color: #888;">v<?php echo esc_html($plugin_version); ?></span>
 </h1>
 <ul class="nav-tab-wrapper">
@@ -26,20 +26,18 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
 </form>
 </div>
 <div id="qna-questions" class="sales-qna-questions tab wrap" style="direction:<?php echo esc_attr($dir); ?>;text-align:<?php echo($dir === 'rtl' ? 'right' : 'left'); ?>;">
-  <div style="width: 100%;display:flex;margin:10px 0; gap:10px;">
-    <input type="text" id="filter-input" placeholder="🔍 חפש שאלה..." style="flex-grow:1">
+  <div class='qna-search-bar'>
+    <input type="text" id="filter-questions" placeholder="🔍 חפש שאלה..." style="flex-grow:1">
     <button id="add-question" class="button button-primary">Add Question</button>
   </div>
   <table class="qna-table widefat fixed">
     <colgroup>
-      <col style="width: 35px;">
       <col style="width: 33.33%;">
       <col style="width: 66.67%;">
-      <col style="width: 60px;">
+      <col style="width: 80px;">
     </colgroup>
     <thead>
       <tr>
-        <th>ID</th>
         <th>Question</th>
         <th>Answer</th>
         <th></th>
@@ -47,7 +45,7 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
     </thead>
     <tbody>
       <tr class="no-data">
-        <td colspan="4">No questions found.</td>
+        <td colspan="3">No questions found.</td>
       </tr>
     </tbody>
   </table>
