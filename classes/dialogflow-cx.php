@@ -7,17 +7,20 @@ use Google\Cloud\Dialogflow\Cx\V3\CreateIntentRequest;
 use Google\Cloud\Dialogflow\Cx\V3\CreatePageRequest;
 use Google\Cloud\Dialogflow\Cx\V3\DeleteIntentRequest;
 use Google\Cloud\Dialogflow\Cx\V3\DetectIntentRequest;
+use Google\Cloud\Dialogflow\Cx\V3\EventInput;
 use Google\Cloud\Dialogflow\Cx\V3\Intent;
 use Google\Cloud\Dialogflow\Cx\V3\Intent\TrainingPhrase;
 use Google\Cloud\Dialogflow\Cx\V3\Intent\TrainingPhrase\Part;
 use Google\Cloud\Dialogflow\Cx\V3\ListFlowsRequest;
 use Google\Cloud\Dialogflow\Cx\V3\ListIntentsRequest;
 use Google\Cloud\Dialogflow\Cx\V3\ListPagesRequest;
+use Google\Cloud\Dialogflow\Cx\V3\MatchIntentRequest;
 use Google\Cloud\Dialogflow\Cx\V3\Page;
 use Google\Cloud\Dialogflow\Cx\V3\PBMatch\MatchType;
 use Google\Cloud\Dialogflow\Cx\V3\QueryInput;
 use Google\Cloud\Dialogflow\Cx\V3\TextInput;
 use Google\Cloud\Dialogflow\Cx\V3\TransitionRoute;
+use Google\Cloud\Dialogflow\Cx\V3\UpdateFlowRequest;
 use Google\Cloud\Dialogflow\Cx\V3\UpdatePageRequest;
 use Google\Protobuf\FieldMask;
 
@@ -30,6 +33,7 @@ final class DialogFlowCX {
   private $agentId = null;
   private $language = null;
   private $keyFilePath = null;
+  const DEFAULT_INTENT_NAME = 'DEF';
 
   private function __construct() {
     $this->keyFilePath = __DIR__ . '/../yinon-arieli-fbad3c8a5ab8.json';
@@ -112,13 +116,8 @@ final class DialogFlowCX {
     return $intentName;
   }
 
-  private function _get_default_page(): Page {
+  private function _get_default_page($pagesClient): Page {
     $defaultFlowName = $this->getDefaultFlow();
-
-    $pagesClient = new PagesClient([
-      'credentials' => $this->keyFilePath,
-      'apiEndpoint' => $this->location . '-dialogflow.googleapis.com'
-    ]);
 
     $listReq = new ListPagesRequest([
       'parent' => $defaultFlowName
@@ -146,7 +145,12 @@ final class DialogFlowCX {
 
   public function add_intent(string $displayName): string {
     // 2) Locate the "Start" page by listing all pages in the flow
-    $page = $this->_get_default_page();
+    $pagesClient = new PagesClient([
+      'credentials' => $this->keyFilePath,
+      'apiEndpoint' => $this->location . '-dialogflow.googleapis.com'
+    ]);
+
+    $page = $this->_get_default_page($pagesClient);
 
     if (!$page) {
       throw new \RuntimeException("Could not get the default page");
@@ -165,20 +169,60 @@ final class DialogFlowCX {
     ]);
     $page->setTransitionRoutes($routes);
 
-    $pagesClient = new PagesClient([
-      'credentials' => $this->keyFilePath,
-      'apiEndpoint' => $this->location . '-dialogflow.googleapis.com'
-    ]);
-
     $updateReq = new UpdatePageRequest();
     $updateReq->setPage($page);
     $updateReq->setUpdateMask(new FieldMask(['paths' => ['transition_routes']]));
-
     $pagesClient->updatePage($updateReq);
     $pagesClient->close();
 
     // 5) Return the new intent's ID
     return basename($intentFullName);
+  }
+
+  private function _remove_intent_references(string $intentFullName): void {
+    // 1) Remove any flow‑level route groups referencing this intent
+    $flows = new FlowsClient([
+      'credentials' => $this->keyFilePath,
+      'apiEndpoint' => "{$this->location}-dialogflow.googleapis.com"
+    ]);
+    $listFlowsReq = (new ListFlowsRequest())->setParent($this->agentPath);
+    foreach ($flows->listFlows($listFlowsReq) as $flow) {
+      $flowName = $flow->getName();
+      $groups = iterator_to_array($flow->getTransitionRouteGroups());
+      $filtered = array_filter($groups, fn($g) => $g->getIntent() !== $intentFullName);
+      if (count($filtered) !== count($groups)) {
+        // update only if we removed something
+        $flow->setTransitionRouteGroups($filtered);
+        $flows->updateFlow(
+          (new UpdateFlowRequest())
+            ->setFlow($flow)
+            ->setUpdateMask(new FieldMask(['paths' => ['transition_route_groups']]))
+        );
+      }
+    }
+    $flows->close();
+
+    // 2) Remove any page‑level routes referencing this intent
+    $pagesClient = new PagesClient([
+      'credentials' => $this->keyFilePath,
+      'apiEndpoint' => "{$this->location}-dialogflow.googleapis.com"
+    ]);
+    $listPagesReq = (new ListPagesRequest())
+      ->setParent($this->getDefaultFlow()); // same flow parent you use elsewhere
+    foreach ($pagesClient->listPages($listPagesReq) as $page) {
+      $pageName = $page->getName();
+      $routes = iterator_to_array($page->getTransitionRoutes());
+      $filtered = array_filter($routes, fn($r) => $r->getIntent() !== $intentFullName);
+      if (count($filtered) !== count($routes)) {
+        $page->setTransitionRoutes($filtered);
+        $pagesClient->updatePage(
+          (new UpdatePageRequest())
+            ->setPage($page)
+            ->setUpdateMask(new FieldMask(['paths' => ['transition_routes']]))
+        );
+      }
+    }
+    $pagesClient->close();
   }
 
   public function delete_intent(string $intentId): bool {
@@ -189,7 +233,8 @@ final class DialogFlowCX {
       $intentId
     );
 
-    // Build the request in one go
+    $this->_remove_intent_references($name);
+
     $request = new DeleteIntentRequest([
       'name' => $name
     ]);
@@ -201,13 +246,13 @@ final class DialogFlowCX {
   }
 
   public function find_intent(string $text): ?array {
-    // 1) Create the client (with region endpoint + credentials)
+    // 1) Create the SessionsClient
     $sessions = new SessionsClient([
       'credentials' => $this->keyFilePath,
-      'apiEndpoint' => $this->location . '-dialogflow.googleapis.com'
+      'apiEndpoint' => "{$this->location}-dialogflow.googleapis.com"
     ]);
 
-    // 2) Build a unique session name
+    // 2) Session name (starts on your default Start page)
     $sessionId = uniqid('', true);
     $sessionName = $sessions->sessionName(
       $this->projectId,
@@ -216,57 +261,68 @@ final class DialogFlowCX {
       $sessionId
     );
 
-    // 3) Prepare the text input
+    // 3) Fire the page‑enter event
+    $eventInput = (new EventInput())->setEvent('ENTER_QNA_PAGE');
+    $eventQuery = (new QueryInput())
+      ->setEvent($eventInput)
+      ->setLanguageCode($this->language);
+    $sessions->detectIntent(
+      (new DetectIntentRequest())
+        ->setSession($sessionName)
+        ->setQueryInput($eventQuery)
+    );
+
+    // 4) Build QueryInput
     $textInput = (new TextInput())->setText($text);
-    $queryInput = (new QueryInput())
+    $textQuery = (new QueryInput())
       ->setText($textInput)
       ->setLanguageCode($this->language);
-
-    // 4) Build and send the DetectIntentRequest
-    $request = (new DetectIntentRequest())
+    $matchReq = (new MatchIntentRequest())
       ->setSession($sessionName)
-      ->setQueryInput($queryInput);
-
-    $response = $sessions->detectIntent($request);
-    $queryResult = $response->getQueryResult();
-
-    // 5) Use getMatch() instead of deprecated getIntent()/getIntentDetectionConfidence()
-    $match = $queryResult->getMatch(); //  [oai_citation_attribution:0‡Google Cloud](https://cloud.google.com/dialogflow/cx/docs/reference/rest/v3/QueryResult?utm_source=chatgpt.com)
-    $intent = $match->getIntent(); // Intent object
-    $confidence = $match->getConfidence(); // float
+      ->setQueryInput($textQuery);
+    $matches = $sessions->matchIntent($matchReq)->getMatches();
 
     $sessions->close();
+    $matches = iterator_to_array($matches);
 
-    $match = $queryResult->getMatch();
-
-    if ($match->getMatchType() !== MatchType::INTENT) {
-      // No intent match (could be NO_MATCH, NO_INPUT, etc.)
+    if (empty($matches)) {
+      // No possible intent matches on the Start page
       return [];
     }
 
-    $intent = $match->getIntent();
-    $confidence = $match->getConfidence();
+    // 6) Pick the best match (highest confidence)
+    usort($matches, fn($a, $b) => $b->getConfidence() <=> $a->getConfidence());
+    $best = $matches[0];
 
-    $displayName = $intent->getDisplayName();
-    if ($displayName === '--') { // couldn't find a way to delete the welcome intent
+    if ($best->getMatchType() !== MatchType::INTENT ||
+      $best->getConfidence() < 0.75) {
+      // It was a fallback or something else
+      return [];
+    }
+
+    $intent = $best->getIntent();
+    $confidence = $best->getConfidence();
+    $display = $intent->getDisplayName();
+    if ($display === self::DEFAULT_INTENT_NAME) {
+      // skip welcome/fallback built‑ins
       return [];
     }
 
     return [[
       'intent_id' => basename($intent->getName()),
-      'question' => $intent->getDisplayName(),
+      'question' => $display,
       'confidence' => $confidence,
       'is_fallback' => $intent->getIsFallback()
     ]];
   }
 
-  public function get_intents(string $search = null): array {
+  public function get_intents(): array {
 
     $request = (new ListIntentsRequest())->setParent($this->agentPath);
     $intents = [];
     foreach ($this->client->listIntents($request) as $intent) {
       $displayName = $intent->getDisplayName();
-      if ($displayName === '--') { // couldn't find a way to delete the welcome intent
+      if ($displayName === self::DEFAULT_INTENT_NAME) { // couldn't find a way to delete the welcome intent
         continue;
       }
       $intentId = basename($intent->getName());

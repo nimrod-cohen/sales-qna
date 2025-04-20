@@ -138,7 +138,7 @@ final class SalesQnA {
     if (!empty($search_term)) {
       $rows = $this->dfcx->find_intent($search_term);
     } else {
-      $rows = $this->dfcx->get_intents($search_term);
+      $rows = $this->dfcx->get_intents();
     }
 
     //this returns an assoc atray of all intent_ids

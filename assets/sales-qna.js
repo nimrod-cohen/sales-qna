@@ -164,18 +164,19 @@ class SalesQnA {
     const tableBody = document.querySelector('table.qna-table tbody');
     tableBody.innerHTML = '';
 
-    if (!data || data.length === 0) {
+    data = data || [];
+
+    if (data.length === 0) {
       tableBody.innerHTML = `<tr class="no-data">
           <td colspan="3">
             No questions found. 
           </td>
         </tr>`;
+      this.state.set('show-add-question', true);
       return;
     }
 
-    if (1 === data.length && data[0].is_fallback === true) {
-      this.state.set('show-add-question', true);
-    }
+    this.state.set('show-add-question', data.length === 1 && data[0]?.is_fallback === true);
 
     data.forEach(item => {
       //round score to maximum 3 digits after the decimal point
