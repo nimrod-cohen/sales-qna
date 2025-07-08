@@ -33,8 +33,10 @@ final class SalesQnA {
   }
 
   private function __construct() {
-    register_activation_hook(__FILE__, ['SalesQnADB', 'install']);
-    register_uninstall_hook(__FILE__, ['SalesQnADB', 'uninstall']);
+    $this->db = SalesQnADB::get_instance();
+
+    register_activation_hook(__FILE__, [$this->db, 'install']);
+    register_uninstall_hook(__FILE__, [$this->db, 'uninstall']);
 
     add_action('plugins_loaded', [$this, 'maybe_upgrade_plugin']);
 
@@ -46,7 +48,6 @@ final class SalesQnA {
       $updater = new \SalesQnA\GitHubPluginUpdater(__FILE__);
     });
 
-    $this->db = SalesQnADB::get_instance();
     $this->dfcx = DialogFlowCX::get_instance();
   }
 
