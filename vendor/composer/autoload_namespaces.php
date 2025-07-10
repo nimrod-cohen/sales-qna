@@ -6,4 +6,5 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
+    'KMeans' => array($vendorDir . '/bdelespierre/php-kmeans/src'),
 );

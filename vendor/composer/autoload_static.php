@@ -26,6 +26,14 @@ class ComposerStaticInit8f08ecd4826235920cc4222878d41423
             'Psr\\Http\\Client\\' => 16,
             'Psr\\Cache\\' => 10,
         ),
+        'O' => 
+        array (
+            'OnnxRuntime\\' => 12,
+        ),
+        'M' => 
+        array (
+            'MHz\\MysqlVector\\' => 16,
+        ),
         'G' => 
         array (
             'GuzzleHttp\\Psr7\\' => 16,
@@ -90,6 +98,14 @@ class ComposerStaticInit8f08ecd4826235920cc4222878d41423
         'Psr\\Cache\\' => 
         array (
             0 => __DIR__ . '/..' . '/psr/cache/src',
+        ),
+        'OnnxRuntime\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/ankane/onnxruntime/src',
+        ),
+        'MHz\\MysqlVector\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/allanpichardo/mysql-vector/src',
         ),
         'GuzzleHttp\\Psr7\\' => 
         array (
@@ -205,6 +221,16 @@ class ComposerStaticInit8f08ecd4826235920cc4222878d41423
         ),
     );
 
+    public static $prefixesPsr0 = array (
+        'K' => 
+        array (
+            'KMeans' => 
+            array (
+                0 => __DIR__ . '/..' . '/bdelespierre/php-kmeans/src',
+            ),
+        ),
+    );
+
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'GPBMetadata\\GrpcGcp' => __DIR__ . '/..' . '/google/grpc-gcp/src/generated/GPBMetadata/GrpcGcp.php',
@@ -220,6 +246,7 @@ class ComposerStaticInit8f08ecd4826235920cc4222878d41423
         return \Closure::bind(function () use ($loader) {
             $loader->prefixLengthsPsr4 = ComposerStaticInit8f08ecd4826235920cc4222878d41423::$prefixLengthsPsr4;
             $loader->prefixDirsPsr4 = ComposerStaticInit8f08ecd4826235920cc4222878d41423::$prefixDirsPsr4;
+            $loader->prefixesPsr0 = ComposerStaticInit8f08ecd4826235920cc4222878d41423::$prefixesPsr0;
             $loader->classMap = ComposerStaticInit8f08ecd4826235920cc4222878d41423::$classMap;
 
         }, null, ClassLoader::class);

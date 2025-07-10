@@ -148,3 +148,9 @@ form.rtl-switch {
     }
   }
 }
+
+#qna-intents {
+  > #add-intent {
+    margin-bottom: 10px;
+  }
+}

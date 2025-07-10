@@ -14,6 +14,8 @@
  * Text Domain:   sales-qna
  */
 
+use SalesQnA\Classes\SalesQnADB;
+
 if (!defined('ABSPATH')) {
   exit; // Exit if accessed directly
 }
@@ -36,7 +38,7 @@ final class SalesQnA {
     $this->db = SalesQnADB::get_instance();
 
     register_activation_hook(__FILE__, [$this->db, 'install']);
-    register_uninstall_hook(__FILE__, [$this->db, 'uninstall']);
+    register_uninstall_hook(__FILE__, [SalesQnADB::class, 'uninstall']);
 
     add_action('plugins_loaded', [$this, 'maybe_upgrade_plugin']);
 
@@ -44,27 +46,51 @@ final class SalesQnA {
     add_action('rest_api_init', [$this, 'register_api_routes']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
 
-    add_action('admin_init', function () {
-      $updater = new \SalesQnA\GitHubPluginUpdater(__FILE__);
-    });
+//    add_action('admin_init', function () {
+//      $updater = new \SalesQnA\GitHubPluginUpdater(__FILE__);
+//    });
 
-    $this->dfcx = DialogFlowCX::get_instance();
+//    $this->dfcx = DialogFlowCX::get_instance();
   }
 
   public function register_api_routes() {
-    register_rest_route('sales-qna/v1', '/get/', [
+    register_rest_route('sales-qna/v1', '/questions/get/', [
       'methods' => 'POST',
       'callback' => [$this, 'get_all_questions'],
       'permission_callback' => '__return_true'
     ]);
-    register_rest_route('sales-qna/v1', '/delete/', [
+    register_rest_route('sales-qna/v1', '/questions/delete/', [
       'methods' => 'POST',
       'callback' => [$this, 'delete_question'],
       'permission_callback' => '__return_true'
     ]);
-    register_rest_route('sales-qna/v1', '/save/', [
+    register_rest_route('sales-qna/v1', '/questions/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_question'],
+      'permission_callback' => '__return_true'
+    ]);
+
+    register_rest_route('sales-qna/v1', '/intents/get/', [
+      'methods' => 'GET',
+      'callback' => [$this, 'get_all_intends'],
+      'permission_callback' => '__return_true'
+    ]);
+
+    register_rest_route('sales-qna/v1', '/intents/delete/', [
+      'methods' => 'POST',
+      'callback' => [$this, 'delete_intent'],
+      'permission_callback' => '__return_true'
+    ]);
+
+    register_rest_route('sales-qna/v1', '/intents/save/', [
+      'methods' => 'POST',
+      'callback' => [$this, 'save_intent'],
+      'permission_callback' => '__return_true'
+    ]);
+
+    register_rest_route('sales-qna/v1', '/answer', [
+      'methods' => 'POST',
+      'callback' => [$this, 'get_answers'],
       'permission_callback' => '__return_true'
     ]);
   }
@@ -101,12 +127,12 @@ final class SalesQnA {
   }
 
   public static function version() {
-    if (!function_exists('get_plugin_data')) {
-      require_once ABSPATH . 'wp-admin/includes/plugin.php';
+    if ( ! defined( 'YOUR_PLUGIN_VERSION' ) ) {
+      $plugin_data = get_file_data( __FILE__, [ 'Version' => 'Version' ] );
+      define( 'YOUR_PLUGIN_VERSION', $plugin_data['Version'] );
     }
 
-    $plugin_data = get_plugin_data(__FILE__);
-    return $plugin_data['Version'];
+    return YOUR_PLUGIN_VERSION;
   }
 
   public function maybe_upgrade_plugin() {
@@ -131,59 +157,70 @@ final class SalesQnA {
     );
   }
 
+  public function get_all_intends() {
+    //this returns an assoc atray of all intent_ids
+    $intends = $this->db->get_all_intends();
+    return rest_ensure_response($intends);
+  }
+
+  public function save_intent( $request ) {
+    $input  = $request->get_json_params();
+    $intent = stripslashes( sanitize_text_field( $input['intent'] ?? '' ) );
+    $answer = stripslashes( sanitize_text_field( $input['answer'] ?? '' ) );
+    $this->db->add_intent( $intent, $answer );
+
+    return rest_ensure_response( [ 'status' => 'success' ] );
+  }
+
+  public function delete_intent($request) {
+    $input = $request->get_json_params();
+    $id = $input['id'] ?? false;
+
+    if (!$id) {
+      return new WP_Error('invalid_id', 'Invalid ID provided.', ['status' => 400]);
+    }
+
+    $this->db->delete_intent($id);
+
+    return rest_ensure_response(['status' => 'success']);
+  }
+
   public function get_all_questions($request) {
     //get the search term from POST
     $input = $request->get_json_params();
     $search_term = sanitize_text_field($input['search'] ?? '');
 
     if (!empty($search_term)) {
-      $rows = $this->dfcx->find_intent($search_term);
+     $answers = $this->db->get_all_questions($search_term);
     } else {
-      $rows = $this->dfcx->get_intents();
+      $answers = $this->db->get_all_questions();
     }
-
-    //this returns an assoc atray of all intent_ids
-    $answers = $this->db->get_all_questions();
-
-    foreach ($rows as &$row) {
-      $row['answer'] = $answers[$row['intent_id']] ?? '';
-    }
-
-    return rest_ensure_response($rows);
+    return rest_ensure_response($answers);
   }
 
   public function save_question($request) {
     $input = $request->get_json_params();
+    $id = intval($input['id'] ?? 0);
     $question = stripslashes(sanitize_text_field($input['question'] ?? ''));
-    $answer = stripslashes(sanitize_textarea_field($input['answer'] ?? ''));
     $intentId = !empty($input['intent_id']) ? $input['intent_id'] : false;
 
-    if (!$intentId) {
-      $intentId = $this->dfcx->add_intent($question);
-      if (!$intentId) {
-        return new WP_Error('invalid_id', 'Invalid ID provided.', ['status' => 400]);
-      }
-      $this->db->add_question($intentId, $answer);
-    } else {
-      $this->db->update_question($intentId, $answer);
+    if ($id > 0) {
+      $this->db->update_question( $intentId, $question );
+    }else {
+      $this->db->add_question( $intentId, $question );
     }
-
     return rest_ensure_response(['status' => 'success']);
   }
 
   public function delete_question($request) {
     $input = $request->get_json_params();
-    $intentId = $input['intent_id'] ?? false;
+    $id = $input['id'] ?? false;
 
-    if (!$intentId) {
+    if (!$id) {
       return new WP_Error('invalid_id', 'Invalid ID provided.', ['status' => 400]);
     }
 
-    if ($this->dfcx->delete_intent($intentId)) {
-      $this->db->delete_question($intentId);
-    } else {
-      return new WP_Error('delete_failed', 'Failed to delete question.', ['status' => 500]);
-    }
+    $this->db->delete_question($id);
 
     return rest_ensure_response(['status' => 'success']);
   }
@@ -203,9 +240,30 @@ final class SalesQnA {
 
     include plugin_dir_path(__FILE__) . 'admin/admin.php';
   }
+
+  public function get_answers($request) {
+    $input = $request->get_json_params();
+    $search_term = sanitize_text_field($input['search'] ?? '');
+
+    return $this->db->get_results($search_term);
+  }
 }
 
 require_once __DIR__ . '/vendor/autoload.php';
+
+// Include the main plugin classes
+$directory = plugin_dir_path(__FILE__) . '/interfaces';
+$files = glob($directory . '/*.php');
+foreach ($files as $file) {
+  require_once $file;
+}
+
+// Include the main plugin classes
+$directory = plugin_dir_path(__FILE__) . '/providers';
+$files = glob($directory . '/*.php');
+foreach ($files as $file) {
+  require_once $file;
+}
 
 // Include the main plugin classes
 $directory = plugin_dir_path(__FILE__) . '/classes';
