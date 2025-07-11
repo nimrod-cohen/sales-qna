@@ -54,11 +54,6 @@ final class SalesQnA {
   }
 
   public function register_api_routes() {
-    register_rest_route('sales-qna/v1', '/questions/get/', [
-      'methods' => 'POST',
-      'callback' => [$this, 'get_all_questions'],
-      'permission_callback' => '__return_true'
-    ]);
     register_rest_route('sales-qna/v1', '/questions/delete/', [
       'methods' => 'POST',
       'callback' => [$this, 'delete_question'],
@@ -72,7 +67,7 @@ final class SalesQnA {
 
     register_rest_route('sales-qna/v1', '/intents/get/', [
       'methods' => 'GET',
-      'callback' => [$this, 'get_all_intends'],
+      'callback' => [$this, 'get_all_intents'],
       'permission_callback' => '__return_true'
     ]);
 
@@ -101,6 +96,7 @@ final class SalesQnA {
     }
     self::enqueue_script('sales-qna-script', 'assets/sales-qna.js', ['wpjsutils']);
     self::enqueue_style('sales-qna-style', 'assets/sales-qna.css', []);
+    self::enqueue_style('sales-qna-panel-style', 'assets/sales-qna-panel.css', []);
   }
 
   private static function enqueue_style($handle, $src, $deps = []) {
@@ -157,17 +153,22 @@ final class SalesQnA {
     );
   }
 
-  public function get_all_intends() {
-    //this returns an assoc atray of all intent_ids
-    $intends = $this->db->get_all_intends();
+  public function get_all_intents() {
+    $intends = $this->db->get_all_intents();
     return rest_ensure_response($intends);
   }
 
   public function save_intent( $request ) {
     $input  = $request->get_json_params();
-    $intent = stripslashes( sanitize_text_field( $input['intent'] ?? '' ) );
+    $name   = stripslashes( sanitize_text_field( $input['name'] ?? '' ) );
     $answer = stripslashes( sanitize_text_field( $input['answer'] ?? '' ) );
-    $this->db->add_intent( $intent, $answer );
+    $id     = $input['id'] ?? false;
+
+    if ( $id ) {
+      $this->db->update_intent( $id, $name, $answer );
+    } else {
+      $this->db->add_intent( $name );
+    }
 
     return rest_ensure_response( [ 'status' => 'success' ] );
   }
@@ -200,16 +201,11 @@ final class SalesQnA {
 
   public function save_question($request) {
     $input = $request->get_json_params();
-    $id = intval($input['id'] ?? 0);
     $question = stripslashes(sanitize_text_field($input['question'] ?? ''));
     $intentId = !empty($input['intent_id']) ? $input['intent_id'] : false;
 
-    if ($id > 0) {
-      $this->db->update_question( $intentId, $question );
-    }else {
-      $this->db->add_question( $intentId, $question );
-    }
-    return rest_ensure_response(['status' => 'success']);
+    $id = $this->db->add_question($question,  $intentId);
+    return rest_ensure_response(['status' => 'success', 'id' => $id]);
   }
 
   public function delete_question($request) {

@@ -1,441 +1,589 @@
 JSUtils.domReady(function () {
-  const salesQnA = new SalesQnA();
-  salesQnA.init();
+    const salesQnA = new SalesQnA();
+    salesQnA.init();
 });
 
 class SalesQnA {
-  debounceTimer = null;
-  state = StateManagerFactory();
+    state = StateManagerFactory();
 
-  init = () => {
-    this.state.listen('questions', this.renderQuestionsTable);
-    this.state.listen('intends', this.renderIntendsTable);
-    this.state.listen('answers', this.renderAnswersTable);
+    currentIntentId = null;
+    originalAnswer = '';
 
-    this.reloadQuestions();
-    this.reloadIntends();
+    init = async () => {
+        this.state.listen('intents', () => this.renderIntentList(''));
 
-    this.state.listen('search', this.reloadQuestions);
-    this.state.listen('show-add-question', this.showAddQuestionButton);
-    this.state.set('show-add-question', true);
-
-    JSUtils.addGlobalEventListener(document, '#ask-question', 'click', this.askQuestion);
-    JSUtils.addGlobalEventListener(document, '#add-question', 'click', this.showAddQuestion);
-    JSUtils.addGlobalEventListener(document, '#add-intent', 'click', this.showAddIntent);
-
-    document.getElementById('filter-questions').addEventListener('input', this.updateSearch);
-
-    document.querySelectorAll('.nav-tab').forEach(tab => {
-      tab.addEventListener('click', e => {
-        e.preventDefault();
-        const target = tab.dataset.tab;
-
-        // toggle tabs
-        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('nav-tab-active'));
-        tab.classList.add('nav-tab-active');
-
-        // toggle content
-        document.querySelectorAll('.tab').forEach(content => {
-          content.style.display = content.id === target ? 'block' : 'none';
-        });
-      });
-    });
-
-    const activeTab = document.querySelector('.nav-tab-active')?.dataset.tab;
-
-    document.querySelectorAll('.tab').forEach(tab => {
-      tab.style.display = tab.id === activeTab ? 'block' : 'none';
-    });
-  };
-
-  showAddQuestionButton = show => {
-    document.querySelector('#add-question').style.display = show ? 'block' : 'none';
-  };
-
-  updateSearch = e => {
-    clearTimeout(this.debounceTimer);
-
-    let oldTerm = this.state.get('search') || '';
-    const term = e.target.value.trim();
-
-    this.debounceTimer = setTimeout(() => {
-      if (term === oldTerm) return;
-      this.state.set('search', term);
-    }, 800); // delay in milliseconds
-  };
-
-  askQuestion = async () => {
-    let question = document.getElementById('ask-input')?.value?.trim() || '';
-    console.log(question);
-
-    const res = await fetch('/wp-json/sales-qna/v1/answer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        search: question || false
-      })
-    });
-    if (!res.ok) {
-      const error = await res.json();
-      window.notifications.show(error.message, 'error');
-    } else {
-      const data = await res.json();
-
-      this.state.set('answers', data);
-    }
-  };
-
-  renderAnswersTable = data => {
-    const tableBody = document.querySelector('table.qna-answers-table tbody');
-    tableBody.innerHTML = '';
-
-    data = data || [];
-
-    if (data.length === 0) {
-      tableBody.innerHTML = `<tr class="no-data">
-          <td colspan="3">
-            No answers were found. 
-          </td>
-        </tr>`;
-      return;
-    }
-
-    data.forEach(item => {
-      //round score to maximum 3 digits after the decimal point
-      tableBody.insertAdjacentHTML(
-          'beforeend',
-          `<tr data-id="${item.id}" data-name="${item.intent_name}" data-answer="${item.intent_answer}">
-           <td class='name'><span class='td-content'>${item.content}</span></td>
-          <td class='name'><span class='td-content'>${item.intent_name}</span></td>
-          <td>${item.intent_answer}</td>
-          <td >
-           ${ Math.round(item.similarity * 100)}%
-          </td>
-        </tr>`
-      );
-    });
-  };
-
-  showAddQuestion = () => {
-    const question = document.getElementById('filter-questions')?.value?.trim() || '';
-    if (question.trim().split(/\s+/).filter(Boolean).length <= 0) {
-      window.notifications.show('Please enter a descriptive question', 'error');
-      return;
-    }
-
-    this.showEditQuestion('', question, '');
-  };
-
-  editQuestionClicked = e => {
-    e.stopPropagation();
-    const row = e.target.closest('tr');
-    const id = row.dataset.id;
-    const question = row.dataset.question;
-    const intentId = row.dataset.intentid;
-
-    this.showEditQuestion(id,question, intentId);
-  };
-
-  showEditQuestion = async (id, question, intentId) => {
-    const dir = document.querySelector('#qna-questions').style.direction || 'ltr';
-    let intents = [];
-    try {
-      const response = await fetch('/wp-json/sales-qna/v1/intents/get');
-      if (response.ok) {
-        intents = await response.json();
-      } else {
-        console.error('Failed to fetch intents');
-      }
-    } catch (error) {
-      console.error('Error fetching intents:', error);
-    }
-
-    // Generate dropdown options
-    const intentOptions = intents.map(intent =>
-        `<option value="${intent.id}" ${intent.id === intentId ? 'selected' : ''}>
-            ${intent.name}
-        </option>`
-    ).join('');
-
-    remodaler.show({
-      type: remodaler.types.FORM,
-      title: 'Edit Question',
-      message: `<div class="modal-content" style="direction:${dir}">
-        <form id="edit-question-form">
-          <input type="hidden" name="id" value="${id}">
-          <label for="qa-question">Question:</label>
-          <input type="text" id="qa-question" name="question" disabled value="${question}" required>
-          <label for="qa-intent">Intent:</label>
-          <select id="qa-intent" name="intent_id" required>
-            <option value="">Select an intent</option>
-            ${intentOptions}
-          </select>
-        </form>`,
-      confirmText: 'Save',
-      confirm: async data => {
-        if (!data.question || !data.intent_id) {
-          window.notifications.show('Please fill in all fields.', 'error');
-          return false;
-        }
-
-        data.id = id;
-        const res = await fetch('/wp-json/sales-qna/v1/questions/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-
-        if (!res.ok) {
-          const error = await res.json();
-          window.notifications.show(error.message, 'error');
-        }
-        this.reloadQuestions();
-      }
-    });
-  };
-
-  doDeleteQuestion = e => {
-    e.stopPropagation();
-    const row = e.target.closest('tr');
-    const id = row.dataset.id;
-
-    remodaler.show({
-      title: 'Attach/Detach User to affiliate',
-      message: `<div class="modal-content">
-        <h2>Delete Question</h2>
-        <p>Are you sure you want to delete this question?</p>
-      </div>`,
-      type: remodaler.types.FORM,
-      confirmText: 'Delete',
-      confirm: async () => {
-        const res = await fetch('/wp-json/sales-qna/v1/questions/delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: id })
-        });
-
-        if (!res.ok) {
-          const error = await res.json();
-          window.notifications.show(error.message, 'error');
-        }
-        this.reloadQuestions();
-      }
-    });
-  };
-
-  reloadQuestions = async () => {
-    const res = await fetch('/wp-json/sales-qna/v1/questions/get', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        search: this.state.get('search') || false
-      })
-    });
-    if (!res.ok) {
-      const error = await res.json();
-      window.notifications.show(error.message, 'error');
-    } else {
-      const data = await res.json();
-      this.state.set('questions', data);
-    }
-  };
-
-  showAddIntent = () => {
-    this.showEditIntent();
-  }
-
-  editIntentClicked = e => {
-    e.stopPropagation();
-    const row = e.target.closest('tr');
-    const intent = row.dataset.intent;
-    const answer = row.dataset.answer;
-    this.showEditIntent(intent, answer);
-  }
-
-  showEditIntent = (intent, answer) => {
-    const dir = document.querySelector('#qna-intents').style.direction || 'ltr';
-
-    remodaler.show({
-      type: remodaler.types.FORM,
-      title: 'Edit Intent',
-      message: `<div class="modal-content" style="direction:${dir}">
-        <form id="edit-intent-form">
-          <label for="qa-intent">Intent:</label>
-          <input type="text" id="qa-intent" name="intent" value="${intent ?? null}" required>
-          <label for="qa-answer">Answer:</label>
-          <textarea id="qa-answer" name="answer" rows=10 required>${answer ?? null}</textarea>
-        </form>`,
-      confirmText: 'Save',
-      confirm: async data => {
-        if (!data.intent || !data.answer) {
-          window.notifications.show('Please fill in all fields.', 'error');
-          return false;
-        }
-
-        const res = await fetch('/wp-json/sales-qna/v1/intents/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-
-        if (!res.ok) {
-          const error = await res.json();
-          window.notifications.show(error.message, 'error');
-        }
-        this.reloadIntents();
-      }
-    });
-  };
-
-  doDeleteIntent = e => {
-    e.stopPropagation();
-    const row = e.target.closest('tr');
-    const id = row.dataset.id;
-
-    remodaler.show({
-      title: 'Attach/Detach User to affiliate',
-      message: `<div class="modal-content">
-        <h2>Delete Intent</h2>
-        <p>Are you sure you want to delete this intent?</p>
-      </div>`,
-      type: remodaler.types.FORM,
-      confirmText: 'Delete',
-      confirm: async () => {
-        const res = await fetch('/wp-json/sales-qna/v1/intents/delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: id })
-        });
-
-        if (!res.ok) {
-          const error = await res.json();
-          window.notifications.show(error.message, 'error');
-        }
         this.reloadIntends();
-      }
-    });
-  };
+        this.intentSearch();
 
-  reloadIntends = async () => {
-    const res = await fetch('/wp-json/sales-qna/v1/intents/get', {
-      method: 'GET'
-    });
-    if (!res.ok) {
-      const error = await res.json();
-    } else {
-      const data = await res.json();
-      this.state.set('intends', data);
-    }
-  }
+        JSUtils.addGlobalEventListener(document, '#create-new-intent', 'click', this.createNewIntent);
+        JSUtils.addGlobalEventListener(document, '#save-new-intent', 'click', this.saveNewIntent);
+        JSUtils.addGlobalEventListener(document, '#cancel-new-intent', 'click', this.cancelNewIntent);
+        JSUtils.addGlobalEventListener(document, '#edit-intent', 'click', this.editIntent);
+        JSUtils.addGlobalEventListener(document, '#delete-intent', 'click', this.deleteIntent);
+        JSUtils.addGlobalEventListener(document, '#save-edit-intent', 'click', this.saveEditIntent);
+        JSUtils.addGlobalEventListener(document, '#cancel-edit-intent', 'click', this.cancelEditIntent);
 
-  renderIntendsTable = data => {
-    const tableBody = document.querySelector('table.qna-intends-table tbody');
-    tableBody.innerHTML = '';
+        JSUtils.addGlobalEventListener(document, '#save-answer', 'click', () => this.saveAnswer());
 
-    data = data || [];
+        JSUtils.addGlobalEventListener(document, '#add-new-question', 'click', this.addNewQuestion);
+        JSUtils.addGlobalEventListener(document, '#delete-question', 'click', this.doDeleteQuestion);
 
-    if (data.length === 0) {
-      tableBody.innerHTML = `<tr class="no-data">
-          <td colspan="3">
-            No questions found. 
-          </td>
-        </tr>`;
-      return;
+        document.addEventListener('keypress', this.handleQuestionKeyPress);
+        document.addEventListener('blur', (event) => {
+            const input = event.target;
+            if (input.classList.contains('question-input')) {
+                input.classList.add('question-input-pending');
+                const index = input.id.split('-')[2];
+                this.updateQuestion(index, input);
+            }
+        }, true);
+
     }
 
-    data.forEach(item => {
-      //round score to maximum 3 digits after the decimal point
-      tableBody.insertAdjacentHTML(
-          'beforeend',
-          `<tr data-id="${item.id}" data-intent="${item.name}" data-answer="${item.answer}">
-          <td class='name'><span class='td-content'>${item.name}</span></td>
-          <td>${item.answer}</td>
-          <td class="qna-actions">
-            <span class='td-content'>
-              <span class="btn edit-btn dashicons dashicons-edit"></span>
-              <span class="btn delete-btn dashicons dashicons-trash"></span>
-            </span>
-          </td>
-        </tr>`
-      );
-    });
+    showStatus = (message, type = 'success') => {
+        const statusEl = document.getElementById('statusMessage');
+        statusEl.textContent = message;
+        statusEl.className = `status-message status-${type}`;
+        statusEl.style.display = 'block';
 
-    document.querySelectorAll('table.qna-intends-table tbody tr .delete-btn').forEach(btn => {
-      btn.addEventListener('click', this.doDeleteIntent);
-    });
-
-    document.querySelectorAll('table.qna-intends-table tbody tr .edit-btn').forEach(btn => {
-      btn.addEventListener('click', this.editIntentClicked);
-    });
-  };
-
-  renderQuestionsTable = data => {
-    const tableBody = document.querySelector('table.qna-table tbody');
-    tableBody.innerHTML = '';
-
-    data = data || [];
-
-    if (data.length === 0) {
-      tableBody.innerHTML = `<tr class="no-data">
-          <td colspan="3">
-            No questions found. 
-          </td>
-        </tr>`;
-      this.state.set('show-add-question', true);
-      return;
+        setTimeout(() => {
+            statusEl.style.display = 'none';
+        }, 3000);
     }
-    //this.state.set('show-add-question', data.length === 1 && data[0]?.is_fallback === true);
-    data.forEach(item => {
-      //round score to maximum 3 digits after the decimal point
-      tableBody.insertAdjacentHTML(
-        'beforeend',
-        `<tr data-id="${item.id}" data-question="${item.question}" data-intent="${item.intent_name}" data-intentid="${item.intent_id}">
-          <td class='question'><span class='td-content'>${item.intent_name}</span></td>
-          <td>${item.question}</td>
-          <td class="qna-actions">
-            <span class='td-content'>
-              <span class="btn edit-btn dashicons dashicons-edit"></span>
-              <span class="btn delete-btn dashicons dashicons-trash"></span>
-            </span>
-          </td>
-        </tr>`
-      );
 
-      const row = document.querySelector('tr[data-id="' + item.id + '"]');
-      const search = this.state.get('search') || null;
-      if (search) {
-        row.querySelector('.question .td-content').innerHTML = this.highlightMatch(row.dataset.question, search);
-        row.cells[1].innerHTML = this.highlightMatch(row.dataset.intent, search);
-      }
-      if (item.is_fallback === true) {
-        row
-          .querySelector('.question .td-content')
-          .insertAdjacentHTML('beforeend', "<span title='fallback intent' class='fallback'></span>");
-      }
-    });
+    reloadIntends = async () => {
+        const res = await fetch('/wp-json/sales-qna/v1/intents/get', {
+            method: 'GET'
+        });
+        if (!res.ok) {
+            const error = await res.json();
+        } else {
+            const data = await res.json();
+            this.state.set('intents', data);
+        }
+    }
 
-    document.querySelectorAll('table.qna-table tbody tr .delete-btn').forEach(btn => {
-      btn.addEventListener('click', this.doDeleteQuestion);
-    });
+    renderIntentList = (filter = '') => {
+        const intentList = document.getElementById('intentList');
+        intentList.innerHTML = '';
 
-    document.querySelectorAll('table.qna-table tbody tr .edit-btn').forEach(btn => {
-      btn.addEventListener('click', this.editQuestionClicked);
-    });
-  };
+        let intentsData = this.state.get('intents');
 
-  highlightMatch = (text, term) => {
-    if (!term) return this.escapeHtml(text);
+        const filteredIntents = Object.entries(intentsData).filter(([id, intent]) =>
+            intent.name.toLowerCase().includes(filter.toLowerCase())
+        );
+        if (filteredIntents.length === 0) {
+            intentList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <p>No intents found</p>
+                    </div>
+                `;
+            return;
+        }
 
-    const regex = new RegExp(`(${term})`, 'gi');
-    return this.escapeHtml(text).replace(regex, '<mark>$1</mark>');
-  };
+        filteredIntents.forEach(([id, intent]) => {
+            const intentItem = document.createElement('div');
+            intentItem.className = 'intent-item';
+            intentItem.onclick = () => this.selectIntent(id);
 
-  escapeHtml = unsafe => {
-    return unsafe
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  };
+            intentItem.innerHTML = `
+                    <div class="intent-name">${intent.name}</div>
+                    <div class="intent-meta">
+                        <span>${intent.questions.length} questions</span>
+                        <span>${intent.answer ? '✓' : '○'}</span>
+                    </div>
+                `;
+
+            intentList.appendChild(intentItem);
+        });
+    }
+
+    intentSearch = () => {
+        const searchInput = document.getElementById('intentSearch');
+        searchInput.addEventListener('input', (e) => {
+            this.renderIntentList(e.target.value);
+        });
+    }
+
+    selectIntent = (intentId, event = null) => {
+        const intentItems = document.querySelectorAll('.intent-item');
+        intentItems.forEach(item => item.classList?.remove('active'));
+
+        let elementToActivate = event?.currentTarget;
+        if (!elementToActivate) {
+            elementToActivate = Array.from(intentItems).find(
+                item => item?.dataset?.id === intentId.toString()
+            ) || intentItems[intentItems.length - 1];
+        }
+
+        elementToActivate?.classList?.add('active');
+
+        this.currentIntentId = intentId;
+
+        const intent = this.state.get('intents')?.[intentId];
+        if (intent) {
+            this.showIntentContent(intent);
+        }
+    };
+
+    showIntentContent = (intent) => {
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('intentContent').style.display = 'block';
+
+        // Update intent title
+        document.getElementById('intentTitle').textContent = intent.name;
+
+        // Update answer
+        document.getElementById('answerText').value = intent.answer;
+        this.originalAnswer = intent.answer;
+
+        // Update questions
+        this.renderQuestions(intent.questions);
+        //updateQuestionCounter();
+    }
+
+    createNewIntent = () => {
+        document.getElementById('newIntentForm').style.display = 'block';
+        document.getElementById('newIntentName').focus();
+    }
+
+    saveNewIntent = () => {
+        const nameEl = document.getElementById('newIntentName');
+        const name = nameEl.value.trim();
+
+        if (!name) {
+            this.showStatus('Please enter an intent name', 'error');
+            return;
+        }
+
+        const intentsData = this.state.get('intents');
+        // Check for duplicate names
+        const existingNames = Object.values(intentsData).map(intent => intent.name.toLowerCase());
+        if (existingNames.includes(name.toLowerCase())) {
+            this.showStatus('An intent with this name already exists', 'error');
+            return;
+        }
+
+        // Generate new ID
+        const newId = Math.max(...Object.keys(intentsData).map(Number)) + 1;
+
+        // Add to data
+        intentsData[newId] = {
+            name: name,
+            answer: '',
+            questions: []
+        };
+
+        this.renderIntentList();
+        this.selectIntent(newId);
+
+        // Hide form
+        this.cancelNewIntent();
+
+        this.apiRequest({
+            url: '/wp-json/sales-qna/v1/intents/save',
+            body: {name: name}
+        }).then(() => {
+            this.showStatus(`Intent "${name}" created successfully`);
+            this.reloadIntends();
+        });
+    }
+
+    cancelNewIntent = () => {
+        document.getElementById('newIntentForm').style.display = 'none';
+        document.getElementById('newIntentName').value = '';
+    }
+
+    editIntent = () => {
+        if (!this.currentIntentId) return;
+
+        const intentsData = this.state.get('intents');
+        const intent = intentsData[this.currentIntentId];
+        const editForm = document.getElementById('intentEditForm');
+        const editNameInput = document.getElementById('editIntentName');
+
+        editNameInput.value = intent.name;
+        editForm.style.display = 'block';
+        editNameInput.focus();
+    }
+
+    saveEditIntent = () => {
+        if (!this.currentIntentId) return;
+
+        const newName = document.getElementById('editIntentName').value.trim();
+
+        if (!newName) {
+            this.showStatus('Please enter an intent name', 'error');
+            return;
+        }
+
+        const intentsData = this.state.get('intents');
+
+        // Check for duplicate names (excluding current intent)
+        const existingNames = Object.entries(intentsData)
+            .filter(([id, intent]) => id !== this.currentIntentId)
+            .map(([id, intent]) => intent.name.toLowerCase());
+
+        if (existingNames.includes(newName.toLowerCase())) {
+            this.showStatus('An intent with this name already exists', 'error');
+            return;
+        }
+
+        intentsData[this.currentIntentId].name = newName;
+        document.getElementById('intentTitle').textContent = newName;
+
+        this.renderIntentList();
+        this.cancelEditIntent();
+
+        const data = {
+            id: intentsData[this.currentIntentId].id,
+            name: newName
+        };
+
+        this.apiRequest({
+            url: '/wp-json/sales-qna/v1/intents/save',
+            body: data
+        }).then(() => {
+            this.showStatus(`Intent renamed to "${newName}"`);
+        });
+    }
+
+    cancelEditIntent = () => {
+        document.getElementById('intentEditForm').style.display = 'none';
+        document.getElementById('editIntentName').value = '';
+    }
+
+    deleteIntent = async () => {
+        if (!this.currentIntentId) return;
+
+        const intentsData = this.state.get('intents');
+        const intent = intentsData[this.currentIntentId];
+        const questionCount = intent.questions.length;
+
+        let confirmMessage = `Are you sure you want to delete the intent "${intent.name}"?`;
+        if (questionCount > 0) {
+            confirmMessage += `\n\nThis will also delete ${questionCount} associated question${questionCount > 1 ? 's' : ''}.`;
+        }
+
+        const confirmed = await this.showConfirmDialog({
+            icon: '🗑️',
+            type: 'danger',
+            title: 'Delete Intent',
+            message: confirmMessage,
+            actionText: 'Delete Intent',
+            details: [
+                { label: 'Intent', value: intent.name },
+                { label: 'Questions', value: questionCount },
+            ]
+        });
+
+        if (confirmed) {
+            const id = intentsData[this.currentIntentId].id;
+            // Remove from data
+            delete intentsData[this.currentIntentId];
+
+            // Refresh list
+            this.renderIntentList();
+
+            this.apiRequest({
+                url: '/wp-json/sales-qna/v1/intents/delete',
+                body: {id: id}
+            }).then(() => {
+                this.showStatus(`Intent "${intent.name}" deleted successfully`);
+
+                // Show empty state
+                document.getElementById('emptyState').style.display = 'flex';
+                document.getElementById('intentContent').style.display = 'none';
+            });
+
+            this.currentIntentId = null;
+        }
+    }
+
+    saveAnswer() {
+        if (!this.currentIntentId) return;
+
+        const answerText = document.getElementById('answerText').value.trim();
+
+        if (!answerText) {
+            this.showStatus('Please enter an answer', 'error');
+            return;
+        }
+
+        const intentsData = this.state.get('intents');
+        intentsData[this.currentIntentId].answer = answerText;
+        this.originalAnswer = answerText;
+
+        // Refresh the list to update the checkmark
+        this.renderIntentList();
+
+        const data = {
+            id: intentsData[this.currentIntentId].id,
+            answer: this.originalAnswer
+        };
+
+        this.apiRequest({
+            url: '/wp-json/sales-qna/v1/intents/save',
+            method: 'POST',
+            body: data,
+            showSuccess: true
+        }).then(() => {
+            this.showStatus('Answer saved successfully');
+        });
+    }
+
+    addNewQuestion = () => {
+        if (!this.currentIntentId) return;
+
+        const intentsData = this.state.get('intents');
+        const newQuestion = '';
+
+        intentsData[this.currentIntentId].questions.push(newQuestion);
+
+        const questionsList = document.getElementById('questionsList');
+        const index = intentsData[this.currentIntentId].questions.length - 1;
+        const questionEl = this.createQuestionElement(newQuestion, index);
+        questionsList.appendChild(questionEl);
+
+        // Focus on the new question input
+        const input = questionEl.querySelector('.question-input');
+        input.focus();
+
+
+        this.updateQuestionCounter();
+        this.renderIntentList();
+    }
+
+    updateQuestion = (index, input) => {
+        if (!this.currentIntentId) return;
+
+        const value = input.value;
+        let intentsData = this.state.get('intents');
+
+        if (value.length === 0) {
+            this.showStatus('Please enter a question', 'error');
+            this.removeQuestion(index);
+            return;
+        }
+
+        intentsData[this.currentIntentId].questions[index] = {
+            text: value.trim()
+        }
+
+        if (value.trim()) {
+            const data = {
+                question: value,
+                intent_id: intentsData[this.currentIntentId].id
+            }
+            this.apiRequest({
+                url: '/wp-json/sales-qna/v1/questions/save',
+                body: data
+            }).then((res) => {
+                input.classList.remove('question-input-pending');
+                input.disabled = true;
+
+                intentsData[this.currentIntentId].questions[index] = {
+                    id: res.id,
+                    text: value.trim()
+                }
+                this.renderQuestions(intentsData[this.currentIntentId].questions);
+            }).catch((res) => {
+                this.removeQuestion(index);
+                this.showStatus('Question not added - server error', 'error');
+            });
+        }
+    }
+
+    removeQuestion = (index) => {
+        const intentsData = this.state.get('intents');
+        intentsData[this.currentIntentId].questions.splice(index, 1);
+        this.renderQuestions(intentsData[this.currentIntentId].questions);
+        this.updateQuestionCounter();
+        this.renderIntentList();
+    }
+
+    doDeleteQuestion = e => {
+        const button = e.target.closest('#delete-question');
+        if (button) {
+            const id = parseInt(button.dataset.questionId);
+            const index = parseInt(button.dataset.questionIndex);
+            this.deleteQuestion(id, index);
+        }
+    }
+
+    deleteQuestion = async (id, index) => {
+        if (!this.currentIntentId) return;
+
+        const intentsData = this.state.get('intents');
+
+        const confirmed = await this.showConfirmDialog({
+            icon: '🗑️',
+            type: 'danger',
+            title: 'Delete Question',
+            message: `Are you sure you want to delete this question? This action cannot be undone.`,
+            actionText: 'Delete Question',
+            details: [
+                { label: 'Question', value: intentsData[this.currentIntentId].questions[index].text },
+            ]
+        });
+
+        if (confirmed) {
+            const data = {
+                id: intentsData[this.currentIntentId].questions[index].id,
+                intent_id: intentsData[this.currentIntentId].id
+            }
+
+            this.apiRequest({
+                url: '/wp-json/sales-qna/v1/questions/delete',
+                body: data
+            }).then(() => {
+                this.showStatus('Question deleted');
+            });
+
+            this.removeQuestion(index);
+        }
+    }
+
+    handleQuestionKeyPress = (event) => {
+        const input = event.target;
+        if (!input.classList.contains('question-input')) return;
+
+        // Only trigger on an Enter key
+        if (event.key === 'Enter') {
+            input.blur();
+        }
+    }
+
+    updateQuestionCounter = () => {
+        if (!this.currentIntentId) return;
+
+        const intentsData = this.state.get('intents');
+        const count = intentsData[this.currentIntentId].questions.length;
+        document.getElementById('questionCounter').textContent = `${count} questions`;
+    }
+
+    renderQuestions = (questions) => {
+        const questionsList = document.getElementById('questionsList');
+        questionsList.innerHTML = '';
+
+        questions.forEach((question, index) => {
+            const questionEl = this.createQuestionElement(question, index);
+            questionsList.appendChild(questionEl);
+        });
+    }
+
+    createQuestionElement = (question, index) => {
+        const div = document.createElement('div');
+
+        // Determine if input should be focusable
+        const hasText = question.text && question.text.trim().length > 0;
+
+        div.className = 'question-item';
+        div.innerHTML = `
+                <div class="question-content">
+                    <input id="question-input-${index}" type="text" class="question-input" value="${question.text ?? ''}" ${hasText ? 'disabled' : ''}>
+                    <div class="question-actions">
+                        <button id="delete-question" data-question-id="${question.id}" data-question-index="${index}" class="btn btn-danger">     
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `;
+        return div;
+    }
+
+    apiRequest = async ({url, method = 'POST', body = {}, showError = true, showSuccess = false}) => {
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                if (showError) {
+                    window.notifications.show(data.message || 'Request failed', 'error');
+                }
+                throw new Error(data.message || 'Request failed');
+            }
+
+            if (showSuccess) {
+                this.showStatus('Request successful');
+            }
+
+            return data;
+        } catch (error) {
+            if (error.name !== 'AbortError' && showError) {
+                window.notifications.show(error.message || 'Failed to process request', 'error');
+            }
+            throw error;
+        }
+    };
+
+    // Custom Confirm Dialog Functions
+    showConfirmDialog = (options) => {
+        const overlay = document.getElementById('confirmOverlay');
+        const icon = document.getElementById('confirmIcon');
+        const title = document.getElementById('confirmTitle');
+        const message = document.getElementById('confirmMessage');
+        const details = document.getElementById('confirmDetails');
+        const actionBtn = document.getElementById('confirmAction');
+        const cancelBtn = document.getElementById('confirmCancel');
+
+        // Set content
+        icon.textContent = options.icon || '🗑️';
+        icon.className = `confirm-icon ${options.type || 'danger'}`;
+        title.textContent = options.title || 'Confirm Action';
+        message.textContent = options.message || 'Are you sure you want to proceed?';
+        actionBtn.textContent = options.actionText || 'Delete';
+        actionBtn.className = `confirm-btn confirm-btn-${options.type || 'danger'}`;
+
+        // Set details if provided
+        if (options.details && options.details.length > 0) {
+            details.style.display = 'block';
+            details.innerHTML = options.details.map(detail => `
+                    <div class="confirm-detail-item">
+                        <span class="confirm-detail-label">${detail.label}:</span>
+                        <span class="confirm-detail-value">${detail.value}</span>
+                    </div>
+                `).join('');
+        } else {
+            details.style.display = 'none';
+        }
+
+        // Show dialog
+        overlay.classList.add('show');
+
+        // Return promise
+        return new Promise((resolve) => {
+            const handleAction = () => {
+                overlay.classList.remove('show');
+                actionBtn.removeEventListener('click', handleAction);
+                cancelBtn.removeEventListener('click', handleCancel);
+                overlay.removeEventListener('click', handleOverlayClick);
+                resolve(true);
+            };
+
+            const handleCancel = () => {
+                overlay.classList.remove('show');
+                actionBtn.removeEventListener('click', handleAction);
+                cancelBtn.removeEventListener('click', handleCancel);
+                overlay.removeEventListener('click', handleOverlayClick);
+                resolve(false);
+            };
+
+            const handleOverlayClick = (e) => {
+                if (e.target === overlay) {
+                    handleCancel();
+                }
+            };
+
+            actionBtn.addEventListener('click', handleAction);
+            cancelBtn.addEventListener('click', handleCancel);
+            overlay.addEventListener('click', handleOverlayClick);
+        });
+    }
 }

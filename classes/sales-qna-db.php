@@ -50,7 +50,7 @@ class SalesQnADB {
 
         CREATE TABLE $this->questions_table (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            content TEXT NOT NULL,
+            question TEXT NOT NULL,
             intent_id INT NOT NULL,
             vector_id INT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -98,10 +98,10 @@ class SalesQnADB {
     return true;
   }
 
-  public function add_question(string $intentId, string $content): bool {
+  public function add_question(string $question, string $intentId): int {
     global $wpdb;
 
-    $embedding = $this->embedding_provider->get_embedding($content);
+    $embedding = $this->embedding_provider->get_embedding($question);
 
     if (!$embedding) {
       return false;
@@ -113,7 +113,7 @@ class SalesQnADB {
       return false;
     }
     $inserted = $wpdb->insert($this->questions_table, [
-      'content'   => $content,
+      'question'   => $question,
       'vector_id' => $vectorId,
       'intent_id'   => $intentId
     ]);
@@ -122,7 +122,7 @@ class SalesQnADB {
       return false;
     }
 
-    return true;
+    return $wpdb->insert_id;
   }
 
   public function delete_question($id) {
@@ -151,15 +151,42 @@ class SalesQnADB {
     return $wpdb->get_results($query, ARRAY_A);
   }
 
-  public function add_intent(string $intent, string $answer): bool {
+  public function add_intent(string $name): bool {
     global $wpdb;
 
-    $slug = $this->generate_slug($intent);
     $result = $wpdb->insert($this->intents_table, [
-      'name' => $intent,
-      'slug' => $slug,
-      'answer' => $answer
+      'name' => $name,
     ]);
+
+    return $result !== false;
+  }
+
+  public function update_intent(string $id, ?string $name = null, ?string $answer = null): bool {
+    global $wpdb;
+
+    $data = [];
+
+    if (!empty($name)) {
+      $data['name'] = sanitize_text_field($name);
+    }
+
+    if (!empty($answer)) {
+      $data['answer'] = sanitize_textarea_field($answer);
+    }
+
+    // Don't proceed if no valid fields to update
+    if (empty($data)) {
+      return false;
+    }
+
+    // Update intent depending on data provided
+    $result = $wpdb->update(
+      $this->intents_table,
+      $data,
+      ['id' => $id],
+      array_map(function($item) { return '%s'; }, $data),
+      ['%s']
+    );
 
     return $result !== false;
   }
@@ -170,10 +197,43 @@ class SalesQnADB {
     return true;
   }
 
-  public function get_all_intends() {
+  public function get_all_intents() {
     global $wpdb;
-    $rows = $wpdb->get_results("SELECT * FROM {$this->intents_table}", ARRAY_A);
-    return $rows;
+
+    $results = $wpdb->get_results(
+      "SELECT i.id, i.name, i.answer, q.question, q.id AS question_id
+         FROM {$this->intents_table} i
+         LEFT JOIN {$this->questions_table} q ON q.intent_id = i.id
+         ORDER BY i.id",
+      ARRAY_A
+    );
+
+    if (empty($results)) {
+      return [];
+    }
+
+    $intents = [];
+    foreach ($results as $row) {
+      $intent_id = $row['id'];
+
+      if (!isset($intents[$intent_id])) {
+        $intents[$intent_id] = [
+          'id' => $row['id'],
+          'name' => $row['name'],
+          'answer' => $row['answer'],
+          'questions' => []
+        ];
+      }
+
+      if (!empty($row['question'])) {
+        $intents[$intent_id]['questions'][] = [
+          'id' => $row['question_id'],
+          'text' => $row['question']
+        ];
+      }
+    }
+
+    return array_values($intents);
   }
 
   public function insert_embedding($content){
