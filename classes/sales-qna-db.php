@@ -93,15 +93,6 @@ class SalesQnADB {
     delete_option('sales_qna_plugin_version');  // Use the actual option name
   }
 
-  public function update_question(string $id, string $question): bool {
-    global $wpdb;
-    $wpdb->update($this->questions_table, [
-      'content' => $question
-    ], ['id' => $id]);
-
-    return true;
-  }
-
   public function add_question(string $question, string $intentId): int {
     global $wpdb;
 
@@ -138,12 +129,8 @@ class SalesQnADB {
   public function save_tags($id, $tags) {
     global $wpdb;
 
-    $cleanTags = array_filter(array_map('trim', $tags), function ($tag) {
-      return strlen($tag) > 0 && strlen($tag) <= 50;
-    });
-
     // Convert to JSON string
-    $tagsJson = json_encode($cleanTags);
+    $tagsJson = json_encode($tags);
 
     $result = $wpdb->update(
       $this->questions_table,
@@ -151,26 +138,6 @@ class SalesQnADB {
       ['id' => $id]);
 
     return $result;
-  }
-
-  public function get_all_questions(string $search_term = '') {
-    global $wpdb;
-
-    $base_query = "
-        SELECT q.*, q.content as question, q.tags as tags, i.name AS intent_name 
-        FROM {$this->questions_table} q
-        LEFT JOIN {$this->intents_table} i ON q.intent_id = i.id
-    ";
-
-    $params = [];
-    if (!empty($search_term)) {
-      $base_query .= " WHERE q.content LIKE %s";
-      $params[] = '%' . $wpdb->esc_like($search_term) . '%';
-    }
-
-    $query = !empty($params) ? $wpdb->prepare($base_query, ...$params) : $base_query;
-
-    return $wpdb->get_results($query, ARRAY_A);
   }
 
   public function add_intent(string $name): bool {
@@ -263,17 +230,8 @@ class SalesQnADB {
     return $this->vector_provider->insert($content);
   }
 
-  private function generate_slug(string $text): string {
-    $slug = strtolower($text);
-    $slug = str_replace(' ', '_', $slug);
-    $slug = preg_replace('/[^a-z0-9_]/', '', $slug);
-    $slug = preg_replace('/_+/', '_', $slug);
-    $slug = trim($slug, '_');
-    return $slug;
-  }
-
-  public function get_results(string $content) {
-    $embedding = $this->embedding_provider->get_embedding($content);
+  public function get_answers(string $question) {
+    $embedding = $this->embedding_provider->get_embedding($question);
     $vector_result = $this->vector_provider->search($embedding);
 
     global $wpdb;
@@ -286,8 +244,7 @@ class SalesQnADB {
     $vector_data = array_map(function($item) {
       return [
         'vector_id' => $item['id'] ?? null,
-        'similarity' => $item['similarity'] ?? 0,
-        'original_data' => $item
+        'similarity' => $item['similarity'] ?? 0
       ];
     }, $vector_result);
 
@@ -307,49 +264,72 @@ class SalesQnADB {
     $questions_with_intents = $wpdb->get_results(
       $wpdb->prepare(
         "SELECT 
-                q.id, 
-                q.vector_id, 
-                q.content, 
-                q.intent_id,
-                i.name AS intent_name,
-                i.answer AS intent_answer
-             FROM {$this->questions_table} q
-             LEFT JOIN {$this->intents_table} i ON q.intent_id = i.id
-             WHERE q.vector_id IN ($placeholders)",
+        q.id AS question_id,
+        q.vector_id, 
+        q.question, 
+        q.intent_id,
+        q.tags,
+        i.name AS intent_name,
+        i.answer AS intent_answer
+     FROM {$this->questions_table} q
+     LEFT JOIN {$this->intents_table} i ON q.intent_id = i.id
+     WHERE q.vector_id IN ($placeholders)",
         $vector_ids
       ),
       ARRAY_A
     );
 
-    // Create lookup by vector_id
+    // Lookup by vector_id for fast access
     $question_lookup = array_column($questions_with_intents, null, 'vector_id');
 
-    // Merge all data while preserving similarity scores
     $combined_results = [];
+
     foreach ($vector_data as $vector) {
       $vector_id = $vector['vector_id'];
-      if (isset($question_lookup[$vector_id])) {
-        $combined_results[] = array_merge(
-          $vector['original_data'],
-          $question_lookup[$vector_id],
-          [
-            'similarity' => $vector['similarity'],
-            // Explicitly include intent data
-            'intent' => [
-              'id' => $question_lookup[$vector_id]['intent_id'],
-              'name' => $question_lookup[$vector_id]['intent_name'],
-              'answer' => $question_lookup[$vector_id]['intent_answer']
-            ]
-          ]
+
+      if (!isset($question_lookup[$vector_id])) {
+        continue;
+      }
+
+      $question_data = $question_lookup[$vector_id];
+      $intent_id = $question_data['intent_id'];
+
+      // Check if this intent is already added
+      $existing = array_filter($combined_results, fn($item) => $item['id'] === $intent_id);
+      $existing_key = key($existing);
+
+      $current_tags = !empty($question_data['tags']) ? json_decode($question_data['tags'], true) : [];
+
+      $similar_question = [
+        'question'   => $question_data['question'],
+        'similarity' => $vector['similarity'],
+        'tags'       => $current_tags,
+      ];
+
+      if ($existing) {
+        // Add to existing similar_questions
+        $combined_results[$existing_key]['similar_questions'][] = $similar_question;
+
+        // Merge tags (ensure uniqueness)
+        $combined_results[$existing_key]['tags'] = array_values(
+          array_unique(array_merge($combined_results[$existing_key]['tags'], $current_tags))
         );
+      } else {
+        // First time seeing this intent
+        $combined_results[] = [
+          'id'                => $intent_id,
+          'name'              => $question_data['intent_name'],
+          'answer'            => $question_data['intent_answer'],
+          'question'          => $question_data['question'],
+          'similarity'        => $vector['similarity'],
+          'tags'              => $current_tags,
+          'similar_questions' => [],
+        ];
       }
     }
 
-    // Sort by similarity (highest first)
-    usort($combined_results, function($a, $b) {
-      return $b['similarity'] <=> $a['similarity'];
-    });
-
+    // Reindex and sort by similarity descending
+    usort($combined_results, fn($a, $b) => $b['similarity'] <=> $a['similarity']);
     return $combined_results;
   }
 }

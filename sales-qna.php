@@ -25,7 +25,6 @@ final class SalesQnA {
   public const PLUGIN_SLUG = 'sales-qna';
   private const OPENAI_API_KEY = 'openai_api_key';
   private $db = null;
-  private $dfcx = null;
 
   public static function get_instance() {
     if (null === self::$instance) {
@@ -45,12 +44,13 @@ final class SalesQnA {
     add_action('admin_menu', [$this, 'register_admin_page']);
     add_action('rest_api_init', [$this, 'register_api_routes']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+    add_action('wp_enqueue_scripts', [$this, 'enqueue_assets']);
 
+    add_shortcode('sales_qna_search_page', [$this, 'render_search_page']);
 //    add_action('admin_init', function () {
 //      $updater = new \SalesQnA\GitHubPluginUpdater(__FILE__);
 //    });
 
-//    $this->dfcx = DialogFlowCX::get_instance();
   }
 
   public function register_api_routes() {
@@ -90,7 +90,7 @@ final class SalesQnA {
     ]);
 
 
-    register_rest_route('sales-qna/v1', '/answer', [
+    register_rest_route('sales-qna/v1', '/answers/get', [
       'methods' => 'POST',
       'callback' => [$this, 'get_answers'],
       'permission_callback' => '__return_true'
@@ -104,6 +104,11 @@ final class SalesQnA {
     self::enqueue_script('sales-qna-script', 'assets/sales-qna.js', ['wpjsutils']);
     self::enqueue_style('sales-qna-style', 'assets/sales-qna.css', []);
     self::enqueue_style('sales-qna-panel-style', 'assets/sales-qna-panel.css', []);
+  }
+
+  public function enqueue_assets($hook) {
+    self::enqueue_script('sales-qna-search', 'assets/sales-qna-search.js', ['wpjsutils']);
+    self::enqueue_style('sales-qna-search', 'assets/sales-qna-search.css', []);
   }
 
   private static function enqueue_style($handle, $src, $deps = []) {
@@ -253,7 +258,15 @@ final class SalesQnA {
     $input = $request->get_json_params();
     $search_term = sanitize_text_field($input['search'] ?? '');
 
-    return $this->db->get_results($search_term);
+    $response = $this->db->get_answers($search_term);
+    return rest_ensure_response($response);
+  }
+
+  public function render_search_page() {
+    ob_start();
+    include plugin_dir_path( __FILE__ ) . 'public/search.php';
+
+    return ob_get_clean();
   }
 }
 
