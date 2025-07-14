@@ -28,13 +28,31 @@ class SalesQnA {
         JSUtils.addGlobalEventListener(document, '#add-new-question', 'click', this.addNewQuestion);
         JSUtils.addGlobalEventListener(document, '#delete-question', 'click', this.doDeleteQuestion);
 
-        document.addEventListener('keypress', this.handleQuestionKeyPress);
+        JSUtils.addGlobalEventListener(document, '#cancel-tag-edit', 'click', (event) => {
+            const index = event.target.dataset.index;
+            this.cancelTagEdit(index);
+        });
+        JSUtils.addGlobalEventListener(document, '#save-tag-edit', 'click', (event) => {
+            const index = event.target.dataset.index;
+            this.saveTagEdit(index);
+        });
+        JSUtils.addGlobalEventListener(document, '.tags-display-mode', 'click', (event) => {
+            const el = event.target.closest('.tags-display-mode');
+            if (!el) return;
+
+            const index = el.dataset.index;
+            this.enterTagEditMode(index);
+        });
+
+        document.addEventListener('keypress', this.handleEnterKeyPress);
         document.addEventListener('blur', (event) => {
             const input = event.target;
             if (input.classList.contains('question-input')) {
                 input.classList.add('question-input-pending');
                 const index = input.id.split('-')[2];
                 this.updateQuestion(index, input);
+            } else if (input.classList.contains('tags-input')) {
+                this.saveTagEdit(input.dataset.index);
             }
         }, true);
 
@@ -388,7 +406,7 @@ class SalesQnA {
                     text: value.trim()
                 }
                 this.renderQuestions(intentsData[this.currentIntentId].questions);
-            }).catch((res) => {
+            }).catch(() => {
                 this.removeQuestion(index);
                 this.showStatus('Question not added - server error', 'error');
             });
@@ -445,9 +463,9 @@ class SalesQnA {
         }
     }
 
-    handleQuestionKeyPress = (event) => {
+    handleEnterKeyPress = (event) => {
         const input = event.target;
-        if (!input.classList.contains('question-input')) return;
+        if (!input.classList.contains('question-input') && !input.classList.contains('tags-input')) return;
 
         // Only trigger on an Enter key
         if (event.key === 'Enter') {
@@ -473,11 +491,129 @@ class SalesQnA {
         });
     }
 
+    validateTag = (tag) => {
+        return tag.trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9\-_\s]/g, '')
+            .replace(/\s+/g, ' ')
+            .replace(/^-+|-+$/g, '')
+            .trim();
+    }
+    parseTags = (tagString) => {
+        if (!tagString || typeof tagString !== 'string') return [];
+
+        return tagString
+            .split(',')
+            .map(tag => this.validateTag(tag))
+            .filter(tag => tag)
+            .slice(0, 10);
+    }
+
+    enterTagEditMode = (questionIndex) => {
+        const displayMode = document.getElementById(`tagsDisplay${questionIndex}`);
+        const editMode = document.getElementById(`tagsEdit${questionIndex}`);
+        const input = document.getElementById(`tagsInput${questionIndex}`);
+
+        displayMode.style.display = 'none';
+        editMode.classList.add('active');
+
+        // Focus on input and select all text
+        setTimeout(() => {
+            input.focus();
+            input.select();
+        }, 100);
+    }
+
+    exitTagEditMode = (questionIndex) => {
+        const displayMode = document.getElementById(`tagsDisplay${questionIndex}`);
+        const editMode = document.getElementById(`tagsEdit${questionIndex}`);
+
+        editMode.classList.remove('active');
+        displayMode.style.display = 'block';
+    }
+
+    saveTagEdit = (questionIndex) => {
+        if (!this.currentIntentId) return;
+
+        const input = document.getElementById(`tagsInput${questionIndex}`);
+        const tagString = input.value;
+        const tags = this.parseTags(tagString);
+
+        const intentsData = this.state.get('intents');
+        const question = intentsData[this.currentIntentId].questions[questionIndex];
+
+        if (typeof question === 'string') {
+            intentsData[this.currentIntentId].questions[questionIndex] = {
+                text: question,
+                tags: tags
+            };
+        } else {
+            question.tags = tags;
+        }
+
+        this.updateTagsDisplay(questionIndex, tags);
+        this.exitTagEditMode(questionIndex);
+        this.renderIntentList();
+
+        const data = {
+            id: intentsData[this.currentIntentId].questions[questionIndex].id,
+            tags: tags,
+        };
+
+        this.apiRequest({
+            url: '/wp-json/sales-qna/v1/tags/save',
+            body: data
+        }).catch((error) => {
+            this.showStatus(error.message || 'An error occurred', 'error');
+        });
+    }
+
+    cancelTagEdit = (questionIndex) => {
+        if (!this.currentIntentId) return;
+
+        const intentsData = this.state.get('intents');
+        const question = intentsData[this.currentIntentId].questions[questionIndex];
+        const originalTags = typeof question === 'object' ? (question.tags || []) : [];
+        const input = document.getElementById(`tagsInput${questionIndex}`);
+
+        input.value = originalTags.join(', ');
+
+        this.exitTagEditMode(questionIndex);
+    }
+
+    updateTagsDisplay = (questionIndex, tags) => {
+        const displayContainer = document.querySelector(`#tagsDisplay${questionIndex} .tags-display`);
+
+        displayContainer.innerHTML = this.renderTagsDisplay(tags);
+
+        // Update empty state class
+        const displayMode = document.getElementById(`tagsDisplay${questionIndex}`);
+        if (tags.length === 0) {
+            displayMode.classList.add('empty');
+        } else {
+            displayMode.classList.remove('empty');
+        }
+    }
+
+    renderTagsDisplay = (tags) => {
+
+        if (!tags || tags.length === 0) {
+            return '<div class="tags-empty-interactive">+ Click to add tags</div>';
+        }
+
+        return tags.map(tag => `
+        <span class="tag-item">${tag}</span>
+    `).join('');
+    }
+
     createQuestionElement = (question, index) => {
         const div = document.createElement('div');
 
         // Determine if input should be focusable
         const hasText = question.text && question.text.trim().length > 0;
+
+        const questionTags = typeof question === 'object' ? (question.tags || []) : [];
+        const tagString = questionTags.join(', ')
 
         div.className = 'question-item';
         div.innerHTML = `
@@ -487,6 +623,35 @@ class SalesQnA {
                         <button id="delete-question" data-question-id="${question.id}" data-question-index="${index}" class="btn btn-danger">     
                             🗑️
                         </button>
+                    </div>
+                </div>
+                <div class="question-tags-section">
+            <div class="tags-container">
+                <!-- Display Mode -->
+                <div class="tags-display-mode ${questionTags.length === 0 ? 'empty' : ''}" data-index="${index}" id="tagsDisplay${index}">
+                    <div class="tags-label">
+                        🏷️ Tags 
+                        <span class="tags-edit-hint">Click to edit</span>
+                    </div>
+                    <div class="tags-display">
+                        ${this.renderTagsDisplay(questionTags)}
+                    </div>
+                </div>
+                
+                <!-- Edit Mode -->
+                <div class="tags-edit-mode" id="tagsEdit${index}">
+                    <div class="tags-input-group">
+                        <div class="tags-label">✏️ Edit Tags</div>
+                        <input type="text" class="tags-input" id="tagsInput${index}" data-index="${index}" value="${questionTags.join(', ')}"
+                               placeholder="Enter tags separated by commas (e.g. pricing, support, features)">
+                        <div class="tags-actions">
+                            <button id="save-tag-edit" class="tags-btn tags-btn-save" data-index="${index}">
+                                💾 Save
+                            </button>
+                            <button id="cancel-tag-edit" class="tags-btn tags-btn-cancel"  data-index="${index}">
+                                ❌ Cancel
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;

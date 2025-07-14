@@ -65,6 +65,12 @@ final class SalesQnA {
       'permission_callback' => '__return_true'
     ]);
 
+    register_rest_route('sales-qna/v1', '/tags/save/', [
+      'methods' => 'POST',
+      'callback' => [$this, 'save_tags'],
+      'permission_callback' => '__return_true'
+    ]);
+
     register_rest_route('sales-qna/v1', '/intents/get/', [
       'methods' => 'GET',
       'callback' => [$this, 'get_all_intents'],
@@ -82,6 +88,7 @@ final class SalesQnA {
       'callback' => [$this, 'save_intent'],
       'permission_callback' => '__return_true'
     ]);
+
 
     register_rest_route('sales-qna/v1', '/answer', [
       'methods' => 'POST',
@@ -186,19 +193,6 @@ final class SalesQnA {
     return rest_ensure_response(['status' => 'success']);
   }
 
-  public function get_all_questions($request) {
-    //get the search term from POST
-    $input = $request->get_json_params();
-    $search_term = sanitize_text_field($input['search'] ?? '');
-
-    if (!empty($search_term)) {
-     $answers = $this->db->get_all_questions($search_term);
-    } else {
-      $answers = $this->db->get_all_questions();
-    }
-    return rest_ensure_response($answers);
-  }
-
   public function save_question($request) {
     $input = $request->get_json_params();
     $question = stripslashes(sanitize_text_field($input['question'] ?? ''));
@@ -219,6 +213,24 @@ final class SalesQnA {
     $this->db->delete_question($id);
 
     return rest_ensure_response(['status' => 'success']);
+  }
+
+  public function save_tags($request) {
+    $input = $request->get_json_params();
+    $tags = $input['tags'] ?? [];
+    $id = $input['id'] ?? false;
+
+    $success = $this->db->save_tags($id, $tags);
+
+    if (!$success) {
+      return new WP_Error(
+        'db_save_error',
+        'Failed to save tags to the database',
+        ['status' => 500]
+      );
+    }
+
+    return new WP_REST_Response(['status' => 'success'], 200);
   }
 
   public function render_admin_page() {

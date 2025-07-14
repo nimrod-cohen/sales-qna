@@ -18,11 +18,11 @@ class SalesQnADB {
   private function __construct() {
     global $wpdb;
     $this->questions_table = $wpdb->prefix . "sales_qna_questions";
-    $this->intents_table = $wpdb->prefix . "sales_qna_intends";
+    $this->intents_table = $wpdb->prefix . "sales_qna_intents";
     $this->vector_table = $wpdb->prefix . "sales_qna_vector";
 
     $this->embedding_provider = new OpenAiProvider();
-    $this->vector_provider = new VectorTableProvider($this->vector_table);
+    $this->vector_provider = new VectorTableProvider();
   }
 
   public static function get_instance() {
@@ -51,6 +51,7 @@ class SalesQnADB {
         CREATE TABLE $this->questions_table (
             id INT AUTO_INCREMENT PRIMARY KEY,
             question TEXT NOT NULL,
+            tags TEXT NOT NULL,
             intent_id INT NOT NULL,
             vector_id INT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -59,6 +60,9 @@ class SalesQnADB {
     ";
 
     dbDelta($sql);
+
+    $this->vector_provider->initialize();
+
     SalesQnA::update_option('plugin_version', '1.0.0');
   }
 
@@ -131,11 +135,29 @@ class SalesQnADB {
     return true;
   }
 
+  public function save_tags($id, $tags) {
+    global $wpdb;
+
+    $cleanTags = array_filter(array_map('trim', $tags), function ($tag) {
+      return strlen($tag) > 0 && strlen($tag) <= 50;
+    });
+
+    // Convert to JSON string
+    $tagsJson = json_encode($cleanTags);
+
+    $result = $wpdb->update(
+      $this->questions_table,
+      ['tags' => $tagsJson], // Data to update
+      ['id' => $id]);
+
+    return $result;
+  }
+
   public function get_all_questions(string $search_term = '') {
     global $wpdb;
 
     $base_query = "
-        SELECT q.*, q.content as question, i.name AS intent_name 
+        SELECT q.*, q.content as question, q.tags as tags, i.name AS intent_name 
         FROM {$this->questions_table} q
         LEFT JOIN {$this->intents_table} i ON q.intent_id = i.id
     ";
@@ -201,7 +223,7 @@ class SalesQnADB {
     global $wpdb;
 
     $results = $wpdb->get_results(
-      "SELECT i.id, i.name, i.answer, q.question, q.id AS question_id
+      "SELECT i.id, i.name, i.answer, q.question, q.id AS question_id, q.tags as question_tags
          FROM {$this->intents_table} i
          LEFT JOIN {$this->questions_table} q ON q.intent_id = i.id
          ORDER BY i.id",
@@ -228,7 +250,8 @@ class SalesQnADB {
       if (!empty($row['question'])) {
         $intents[$intent_id]['questions'][] = [
           'id' => $row['question_id'],
-          'text' => $row['question']
+          'text' => $row['question'],
+          'tags' => !empty($row['question_tags']) ? json_decode($row['question_tags'], true) : []
         ];
       }
     }

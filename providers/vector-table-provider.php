@@ -8,14 +8,16 @@ class VectorTableProvider implements VectorProviderInterface {
   private $dimension;
   private $engine;
   private $mysqli;
+  private $vector;
 
-  public function __construct($table_name = 'wp_vector_embeddings', $dimension = 384, $engine = 'InnoDB') {
-    $this->table_name = $table_name;
+  public function __construct($table_name = null, $dimension = 384, $engine = 'InnoDB') {
+    $this->table_name = $table_name ?: 'wp_vector_embeddings';
     $this->dimension = $dimension;
     $this->engine = $engine;
 
     // Initialize database connection
     $this->initialize_db_connection();
+    $this->vector = new VectorTable($this->mysqli, $this->table_name, $this->dimension, $this->engine);
   }
 
   private function initialize_db_connection() {
@@ -26,14 +28,20 @@ class VectorTableProvider implements VectorProviderInterface {
     }
   }
 
+  public function initialize() {
+    global $wpdb;
+    $this->vector->initialize();
+    $vectors_table = $this->table_name . '_vectors';
+    $sql = "ALTER TABLE `$vectors_table` MODIFY binary_code VARBINARY(2048) NULL";
+    $wpdb->query($sql);
+  }
+
   public function search(string $vector_string, int $limit = 5): array {
-    $vector = new VectorTable($this->mysqli, $this->table_name, $this->dimension, $this->engine);
-    return $vector->search($this->get_array($vector_string), $limit);
+    return $this->vector->search($this->get_array($vector_string), $limit);
   }
 
   public function insert(string $vector_string): int {
-    $vector = new VectorTable($this->mysqli, $this->table_name, $this->dimension, $this->engine);
-    return $vector->upsert($this->get_array($vector_string));
+    return $this->vector->upsert($this->get_array($vector_string));
   }
 
   private function get_array(string $vector_string) {
