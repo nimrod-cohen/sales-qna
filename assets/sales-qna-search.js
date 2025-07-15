@@ -9,6 +9,8 @@ class SalesQnASearch {
         JSUtils.addGlobalEventListener(document, '#ask-question', 'click', this.askQuestion);
         JSUtils.addGlobalEventListener(document, '#clear-question', 'click', this.clearQuestion);
         JSUtils.addGlobalEventListener(document, '#copy-btn', 'click', (event) => this.handleCopyClick(event));
+
+        document.addEventListener('keypress', this.handleEnterKeyPress);
     }
 
     askQuestion = async () => {
@@ -202,6 +204,17 @@ class SalesQnASearch {
         } catch (err) {
             console.error('Fallback copy failed:', err);
             this.showStatus('Copy failed. Please select and copy manually.', 'error');
+        }
+    }
+
+    handleEnterKeyPress = (event) => {
+        const input = event.target;
+        if (!input.classList.contains('question-input')) return;
+
+        // Only trigger on an Enter key
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            this.askQuestion()
         }
     }
 }

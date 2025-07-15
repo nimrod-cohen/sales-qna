@@ -1,9 +1,9 @@
 JSUtils.domReady(function () {
-    const salesQnA = new SalesQnA();
+    const salesQnA = new SalesQnaAdminPanel();
     salesQnA.init();
 });
 
-class SalesQnA {
+class SalesQnaAdminPanel {
     state = StateManagerFactory();
 
     currentIntentId = null;
@@ -149,25 +149,22 @@ class SalesQnA {
         document.getElementById('emptyState').style.display = 'none';
         document.getElementById('intentContent').style.display = 'block';
 
-        // Update intent title
         document.getElementById('intentTitle').textContent = intent.name;
 
-        // Update answer
         document.getElementById('answerText').value = intent.answer;
         this.originalAnswer = intent.answer;
 
-        // Update questions
         this.renderQuestions(intent.questions);
-        //updateQuestionCounter();
+        this.updateQuestionCounter();
     }
 
     createNewIntent = () => {
         document.getElementById('newIntentForm').style.display = 'block';
-        document.getElementById('newIntentName').focus();
+        document.getElementById('intent-input').focus();
     }
 
     saveNewIntent = () => {
-        const nameEl = document.getElementById('newIntentName');
+        const nameEl = document.getElementById('intent-input');
         const name = nameEl.value.trim();
 
         if (!name) {
@@ -210,7 +207,7 @@ class SalesQnA {
 
     cancelNewIntent = () => {
         document.getElementById('newIntentForm').style.display = 'none';
-        document.getElementById('newIntentName').value = '';
+        document.getElementById('intent-input').value = '';
     }
 
     editIntent = () => {
@@ -228,7 +225,7 @@ class SalesQnA {
 
     saveEditIntent = () => {
         if (!this.currentIntentId) return;
-
+        console.log('test');
         const newName = document.getElementById('editIntentName').value.trim();
 
         if (!newName) {
@@ -406,6 +403,7 @@ class SalesQnA {
                     text: value.trim()
                 }
                 this.renderQuestions(intentsData[this.currentIntentId].questions);
+                this.showStatus('Question added');
             }).catch(() => {
                 this.removeQuestion(index);
                 this.showStatus('Question not added - server error', 'error');
@@ -499,6 +497,7 @@ class SalesQnA {
             .replace(/^-+|-+$/g, '')
             .trim();
     }
+
     parseTags = (tagString) => {
         if (!tagString || typeof tagString !== 'string') return [];
 
@@ -538,6 +537,8 @@ class SalesQnA {
         const input = document.getElementById(`tagsInput${questionIndex}`);
         const tagString = input.value;
         const tags = this.parseTags(tagString);
+
+        if (tags.length === 0) return;
 
         const intentsData = this.state.get('intents');
         const question = intentsData[this.currentIntentId].questions[questionIndex];

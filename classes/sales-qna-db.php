@@ -129,12 +129,11 @@ class SalesQnADB {
   public function save_tags($id, $tags) {
     global $wpdb;
 
-    // Convert to JSON string
     $tagsJson = json_encode($tags);
 
     $result = $wpdb->update(
       $this->questions_table,
-      ['tags' => $tagsJson], // Data to update
+      ['tags' => $tagsJson],
       ['id' => $id]);
 
     return $result;
@@ -232,104 +231,90 @@ class SalesQnADB {
 
   public function get_answers(string $question) {
     $embedding = $this->embedding_provider->get_embedding($question);
-    $vector_result = $this->vector_provider->search($embedding);
+    $vector_results = $this->vector_provider->search($embedding);
 
+    if (empty($vector_results)) return [];
+
+    $vector_data = array_filter(array_map(function($item) {
+      return isset($item['id']) ? [
+        'vector_id'  => $item['id'],
+        'similarity' => $item['similarity'] ?? 0
+      ] : null;
+    }, $vector_results));
+
+    if (empty($vector_data)) return [];
+
+    $questions = $this->get_questions_by_vector_ids(array_column($vector_data, 'vector_id'));
+
+    return $this->group_by_intent($vector_data, $questions);
+  }
+
+  private function get_questions_by_vector_ids(array $vector_ids): array {
     global $wpdb;
 
-    if (empty($vector_result)) {
-      return [];
-    }
+    if (empty($vector_ids)) return [];
 
-    // Prepare vector data with similarity scores
-    $vector_data = array_map(function($item) {
-      return [
-        'vector_id' => $item['id'] ?? null,
-        'similarity' => $item['similarity'] ?? 0
-      ];
-    }, $vector_result);
-
-    // Filter valid vector IDs
-    $vector_data = array_filter($vector_data, function($item) {
-      return !is_null($item['vector_id']);
-    });
-
-    if (empty($vector_data)) {
-      return [];
-    }
-
-    $vector_ids = array_column($vector_data, 'vector_id');
     $placeholders = implode(',', array_fill(0, count($vector_ids), '%d'));
 
-    // Get questions with their intent data in one query
-    $questions_with_intents = $wpdb->get_results(
+    return $wpdb->get_results(
       $wpdb->prepare(
         "SELECT 
-        q.id AS question_id,
-        q.vector_id, 
-        q.question, 
-        q.intent_id,
-        q.tags,
-        i.name AS intent_name,
-        i.answer AS intent_answer
-     FROM {$this->questions_table} q
-     LEFT JOIN {$this->intents_table} i ON q.intent_id = i.id
-     WHERE q.vector_id IN ($placeholders)",
+                q.vector_id,
+                q.question,
+                q.tags,
+                q.intent_id,
+                i.name AS intent_name,
+                i.answer AS intent_answer
+             FROM {$this->questions_table} q
+             LEFT JOIN {$this->intents_table} i ON q.intent_id = i.id
+             WHERE q.vector_id IN ($placeholders)",
         $vector_ids
       ),
       ARRAY_A
     );
+  }
 
-    // Lookup by vector_id for fast access
-    $question_lookup = array_column($questions_with_intents, null, 'vector_id');
-
-    $combined_results = [];
+  private function group_by_intent(array $vector_data, array $questions): array {
+    $grouped = [];
 
     foreach ($vector_data as $vector) {
-      $vector_id = $vector['vector_id'];
+      foreach ($questions as $q) {
+        if ($q['vector_id'] != $vector['vector_id']) continue;
 
-      if (!isset($question_lookup[$vector_id])) {
-        continue;
-      }
+        $intent_id = $q['intent_id'];
+        $tags = is_array(json_decode($q['tags'] ?? '[]', true))
+          ? json_decode($q['tags'], true)
+          : [];
 
-      $question_data = $question_lookup[$vector_id];
-      $intent_id = $question_data['intent_id'];
+        if (!isset($grouped[$intent_id])) {
+          $grouped[$intent_id] = [
+            'id'                => $intent_id,
+            'name'              => $q['intent_name'],
+            'answer'            => $q['intent_answer'],
+            'question'          => $q['question'],
+            'similarity'        => $vector['similarity'],
+            'tags'              => $tags,
+            'similar_questions' => [],
+          ];
+        } else {
+          $grouped[$intent_id]['similar_questions'][] = [
+            'question'   => $q['question'],
+            'similarity' => $vector['similarity'],
+            'tags'       => $tags,
+          ];
 
-      // Check if this intent is already added
-      $existing = array_filter($combined_results, fn($item) => $item['id'] === $intent_id);
-      $existing_key = key($existing);
-
-      $current_tags = !empty($question_data['tags']) ? json_decode($question_data['tags'], true) : [];
-
-      $similar_question = [
-        'question'   => $question_data['question'],
-        'similarity' => $vector['similarity'],
-        'tags'       => $current_tags,
-      ];
-
-      if ($existing) {
-        // Add to existing similar_questions
-        $combined_results[$existing_key]['similar_questions'][] = $similar_question;
-
-        // Merge tags (ensure uniqueness)
-        $combined_results[$existing_key]['tags'] = array_values(
-          array_unique(array_merge($combined_results[$existing_key]['tags'], $current_tags))
-        );
-      } else {
-        // First time seeing this intent
-        $combined_results[] = [
-          'id'                => $intent_id,
-          'name'              => $question_data['intent_name'],
-          'answer'            => $question_data['intent_answer'],
-          'question'          => $question_data['question'],
-          'similarity'        => $vector['similarity'],
-          'tags'              => $current_tags,
-          'similar_questions' => [],
-        ];
+          // Merge tags (unique)
+          $grouped[$intent_id]['tags'] = array_values(array_unique(array_merge(
+            $grouped[$intent_id]['tags'],
+            $tags
+          )));
+        }
       }
     }
 
-    // Reindex and sort by similarity descending
-    usort($combined_results, fn($a, $b) => $b['similarity'] <=> $a['similarity']);
-    return $combined_results;
+    $results = array_values($grouped);
+    usort($results, fn($a, $b) => $b['similarity'] <=> $a['similarity']);
+
+    return $results;
   }
 }

@@ -44,56 +44,69 @@ final class SalesQnA {
     add_action('admin_menu', [$this, 'register_admin_page']);
     add_action('rest_api_init', [$this, 'register_api_routes']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
-    add_action('wp_enqueue_scripts', [$this, 'enqueue_assets']);
 
+    add_action('wp_enqueue_scripts', [$this, 'sales_qna_enqueue_shortcode_assets']);
     add_shortcode('sales_qna_search_page', [$this, 'render_search_page']);
+
 //    add_action('admin_init', function () {
 //      $updater = new \SalesQnA\GitHubPluginUpdater(__FILE__);
 //    });
-
   }
 
   public function register_api_routes() {
+    $this->register_question_routes();
+    $this->register_tag_routes();
+    $this->register_intent_routes();
+    $this->register_answer_routes();
+  }
+
+  private function register_question_routes() {
     register_rest_route('sales-qna/v1', '/questions/delete/', [
       'methods' => 'POST',
       'callback' => [$this, 'delete_question'],
-      'permission_callback' => '__return_true'
+      'permission_callback' => '__return_true',
     ]);
+
     register_rest_route('sales-qna/v1', '/questions/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_question'],
-      'permission_callback' => '__return_true'
+      'permission_callback' => '__return_true',
     ]);
+  }
 
+  private function register_tag_routes() {
     register_rest_route('sales-qna/v1', '/tags/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_tags'],
-      'permission_callback' => '__return_true'
+      'permission_callback' => '__return_true',
     ]);
+  }
 
+  private function register_intent_routes() {
     register_rest_route('sales-qna/v1', '/intents/get/', [
       'methods' => 'GET',
       'callback' => [$this, 'get_all_intents'],
-      'permission_callback' => '__return_true'
+      'permission_callback' => '__return_true',
     ]);
 
     register_rest_route('sales-qna/v1', '/intents/delete/', [
       'methods' => 'POST',
       'callback' => [$this, 'delete_intent'],
-      'permission_callback' => '__return_true'
+      'permission_callback' => '__return_true',
     ]);
 
     register_rest_route('sales-qna/v1', '/intents/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_intent'],
-      'permission_callback' => '__return_true'
+      'permission_callback' => '__return_true',
     ]);
+  }
 
-
+  private function register_answer_routes() {
     register_rest_route('sales-qna/v1', '/answers/get', [
       'methods' => 'POST',
       'callback' => [$this, 'get_answers'],
-      'permission_callback' => '__return_true'
+      'permission_callback' => '__return_true',
     ]);
   }
 
@@ -101,14 +114,8 @@ final class SalesQnA {
     if ($hook !== 'toplevel_page_sales-qna') {
       return;
     }
-    self::enqueue_script('sales-qna-script', 'assets/sales-qna.js', ['wpjsutils']);
-    self::enqueue_style('sales-qna-style', 'assets/sales-qna.css', []);
-    self::enqueue_style('sales-qna-panel-style', 'assets/sales-qna-panel.css', []);
-  }
-
-  public function enqueue_assets($hook) {
-    self::enqueue_script('sales-qna-search', 'assets/sales-qna-search.js', ['wpjsutils']);
-    self::enqueue_style('sales-qna-search', 'assets/sales-qna-search.css', []);
+    self::enqueue_script('sales-qna-script', 'assets/sales-qna-admin-panel.js', ['wpjsutils']);
+    self::enqueue_style('sales-qna-panel-style', 'assets/sales-qna-admin-panel.css', []);
   }
 
   private static function enqueue_style($handle, $src, $deps = []) {
@@ -225,14 +232,13 @@ final class SalesQnA {
     $tags = $input['tags'] ?? [];
     $id = $input['id'] ?? false;
 
-    $success = $this->db->save_tags($id, $tags);
+    $result = $this->db->save_tags($id, $tags);
 
-    if (!$success) {
-      return new WP_Error(
-        'db_save_error',
-        'Failed to save tags to the database',
-        ['status' => 500]
-      );
+    if ($result === false) {
+      return new WP_REST_Response([
+        'status' => 'error',
+        'message' => 'Failed to save tags'
+      ], 500);
     }
 
     return new WP_REST_Response(['status' => 'success'], 200);
@@ -268,29 +274,25 @@ final class SalesQnA {
 
     return ob_get_clean();
   }
+
+  function sales_qna_enqueue_shortcode_assets() {
+    if (is_singular() && has_shortcode(get_post()->post_content, 'sales_qna_search_page')) {
+      self::enqueue_script('sales-qna-search', 'assets/sales-qna-search.js', ['wpjsutils']);
+      self::enqueue_style('sales-qna-search', 'assets/sales-qna-search.css', []);
+    }
+  }
 }
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-// Include the main plugin classes
-$directory = plugin_dir_path(__FILE__) . '/interfaces';
-$files = glob($directory . '/*.php');
-foreach ($files as $file) {
-  require_once $file;
-}
+$subdirs = ['interfaces', 'providers', 'classes'];
 
-// Include the main plugin classes
-$directory = plugin_dir_path(__FILE__) . '/providers';
-$files = glob($directory . '/*.php');
-foreach ($files as $file) {
-  require_once $file;
-}
-
-// Include the main plugin classes
-$directory = plugin_dir_path(__FILE__) . '/classes';
-$files = glob($directory . '/*.php');
-foreach ($files as $file) {
-  require_once $file;
+foreach($subdirs as $subdir) {
+  $directory = plugin_dir_path(__FILE__) . $subdir;
+  $files = glob($directory . '/*.php');
+  foreach ($files as $file) {
+    require_once $file;
+  }
 }
 
 // Initialize the plugin

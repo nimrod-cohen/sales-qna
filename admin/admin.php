@@ -41,8 +41,8 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
                 <!-- New Intent Form -->
                 <div id="newIntentForm" class="new-intent-form">
                     <div class="form-group">
-                        <label class="form-label" for="newIntentName">Intent Name</label>
-                        <input type="text" class="form-input" id="newIntentName" placeholder="Enter intent name...">
+                        <label class="form-label" for="intent-input">Intent Name</label>
+                        <input type="text" class="form-input intent-input" id="intent-input" placeholder="Enter intent name...">
                     </div>
                     <div class="form-actions">
                         <button id="save-new-intent" class="btn btn-primary">Create</button>

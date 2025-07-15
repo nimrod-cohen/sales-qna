@@ -10,21 +10,21 @@ class VectorTableProvider implements VectorProviderInterface {
   private $mysqli;
   private $vector;
 
-  public function __construct($table_name = null, $dimension = 384, $engine = 'InnoDB') {
+  public function __construct( $table_name = null, $dimension = 384, $engine = 'InnoDB' ) {
     $this->table_name = $table_name ?: 'wp_vector_embeddings';
-    $this->dimension = $dimension;
-    $this->engine = $engine;
+    $this->dimension  = $dimension;
+    $this->engine     = $engine;
 
     // Initialize database connection
     $this->initialize_db_connection();
-    $this->vector = new VectorTable($this->mysqli, $this->table_name, $this->dimension, $this->engine);
+    $this->vector = new VectorTable( $this->mysqli, $this->table_name, $this->dimension, $this->engine );
   }
 
   private function initialize_db_connection() {
-    $this->mysqli = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
+    $this->mysqli = new mysqli( DB_HOST, DB_USER, DB_PASSWORD, DB_NAME );
 
-    if ($this->mysqli->connect_error) {
-      throw new Exception('MySQLi connection failed: ' . $this->mysqli->connect_error);
+    if ( $this->mysqli->connect_error ) {
+      throw new Exception( 'MySQLi connection failed: ' . $this->mysqli->connect_error );
     }
   }
 
@@ -32,20 +32,21 @@ class VectorTableProvider implements VectorProviderInterface {
     global $wpdb;
     $this->vector->initialize();
     $vectors_table = $this->table_name . '_vectors';
-    $sql = "ALTER TABLE `$vectors_table` MODIFY binary_code VARBINARY(2048) NULL";
-    $wpdb->query($sql);
+    $sql           = "ALTER TABLE `$vectors_table` MODIFY binary_code VARBINARY(2048) NULL";
+    $wpdb->query( $sql );
   }
 
-  public function search(string $vector_string, int $limit = 5): array {
-    return $this->vector->search($this->get_array($vector_string), $limit);
+  public function search( string $vector_string, int $limit = 5 ): array {
+    return $this->vector->search( $this->format_array( $vector_string ), $limit );
   }
 
-  public function insert(string $vector_string): int {
-    return $this->vector->upsert($this->get_array($vector_string));
+  public function insert( string $vector_string ): int {
+    return $this->vector->upsert( $this->format_array( $vector_string ) );
   }
 
-  private function get_array(string $vector_string) {
-    $vector_string = trim($vector_string);
-    return json_decode($vector_string, true);
+  private function format_array( string $vector_string ) {
+    $vector_string = trim( $vector_string );
+
+    return json_decode( $vector_string, true );
   }
 }
