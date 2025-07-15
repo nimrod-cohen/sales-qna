@@ -1,13 +1,8 @@
 <?php
+$dir = SalesQnA::get_option('text_direction', 'ltr');
 ?>
-<div class="sales-qna-search-page">
+<div class="sales-qna-search-page" style="direction:<?php echo esc_attr($dir); ?>;text-align:<?php echo($dir === 'rtl' ? 'right' : 'left'); ?>;">
     <div class="qna-search-container">
-        <!-- Header -->
-        <div class="header">
-            <h1>Question Matching Interface</h1>
-            <p>Find the best answers for customer questions with suitability scoring</p>
-        </div>
-
         <!-- Question Input -->
         <div class="question-input-section">
             <label class="input-label" for="customerQuestion">Customer Question</label>

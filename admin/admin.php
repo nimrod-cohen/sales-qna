@@ -2,7 +2,7 @@
 $plugin_version = SalesQnA::version();
 $dir = SalesQnA::get_option('text_direction', 'ltr');
 ?>
-<div class="sales-qna-container">
+<div class="sales-qna-container"  style="direction:<?php echo esc_attr($dir); ?>;text-align:<?php echo($dir === 'rtl' ? 'right' : 'left'); ?>;">
     <!-- Header -->
     <div class="sales-qna-header">
         <h1>Q&A Admin Panel</h1>
@@ -101,6 +101,13 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
                         </button>
                     </div>
 
+                    <!-- Tags Section -->
+                    <div class="sales-qna-tags-section">
+                        <div id="tagsList" class="tags-list">
+                            <!-- Questions will be populated here -->
+                        </div>
+                    </div>
+
                     <!-- Questions Section -->
                     <div class="sales-qna-questions-section">
                         <h3 class="section-title">
@@ -119,13 +126,35 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
                     </div>
                 </div>
             </div>
+
+        </div>
+
+        <div class="sales-qna-settings">
+            <div id="qna-settings-toggle" class="qna-settings-toggle">Settings</div>
+            <div id="qna-settings-content" class="qna-hidden qna-settings-content sales-qna-section">
+                <form method="post" class="rtl-switch">
+                    <label class="switch-title">RTL:</label>
+                    <label class="switch">
+                        <input type="checkbox" name="text_direction" value="rtl"
+                               onchange="this.form.submit();"<?php echo checked( $dir, 'rtl', false ); ?>>
+                        <span class="slider"></span>
+                    </label>
+                    <input type="hidden" name="toggle_direction" value="1">
+                </form>
+                <form method="post" class="openai-settings" style="margin-top: 20px;">
+                    <label for="openai_api_key"><strong>OpenAI API Key:</strong></label>
+                    <input type="text" name="openai_api_key" id="openai_api_key"
+                           value="<?php echo esc_attr( SalesQnA::get_option( 'openai_api_key', '' ) ); ?>"
+                           style="width: 100%;"/>
+                    <button type="submit" class="btn btn-success" style="margin-top: 10px;">Save API Key</button>
+                </form>
+            </div>
         </div>
     </div>
 </div>
 
-
 <!-- Custom Confirm Dialog -->
-<div id="confirmOverlay" class="confirm-overlay">
+<div id="confirmOverlay" class="confirm-overlay" style="direction:<?php echo esc_attr($dir); ?>;text-align:<?php echo($dir === 'rtl' ? 'right' : 'left'); ?>;">
     <div class="confirm-dialog">
         <div class="confirm-header">
             <div id="confirmIcon" class="confirm-icon">

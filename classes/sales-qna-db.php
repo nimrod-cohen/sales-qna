@@ -44,6 +44,7 @@ class SalesQnADB {
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
             answer TEXT NOT NULL,
+            tags TEXT NOT NULL,
             slug TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )$charset_collate;
@@ -51,7 +52,6 @@ class SalesQnADB {
         CREATE TABLE $this->questions_table (
             id INT AUTO_INCREMENT PRIMARY KEY,
             question TEXT NOT NULL,
-            tags TEXT NOT NULL,
             intent_id INT NOT NULL,
             vector_id INT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -132,7 +132,7 @@ class SalesQnADB {
     $tagsJson = json_encode($tags);
 
     $result = $wpdb->update(
-      $this->questions_table,
+      $this->intents_table,
       ['tags' => $tagsJson],
       ['id' => $id]);
 
@@ -189,7 +189,7 @@ class SalesQnADB {
     global $wpdb;
 
     $results = $wpdb->get_results(
-      "SELECT i.id, i.name, i.answer, q.question, q.id AS question_id, q.tags as question_tags
+      "SELECT i.id, i.name, i.answer, i.tags as intent_tags, q.question, q.id AS question_id
          FROM {$this->intents_table} i
          LEFT JOIN {$this->questions_table} q ON q.intent_id = i.id
          ORDER BY i.id",
@@ -209,6 +209,7 @@ class SalesQnADB {
           'id' => $row['id'],
           'name' => $row['name'],
           'answer' => $row['answer'],
+          'tags' => !empty($row['intent_tags']) ? json_decode($row['intent_tags'], true) : [],
           'questions' => []
         ];
       }
@@ -217,7 +218,6 @@ class SalesQnADB {
         $intents[$intent_id]['questions'][] = [
           'id' => $row['question_id'],
           'text' => $row['question'],
-          'tags' => !empty($row['question_tags']) ? json_decode($row['question_tags'], true) : []
         ];
       }
     }
@@ -261,10 +261,10 @@ class SalesQnADB {
         "SELECT 
                 q.vector_id,
                 q.question,
-                q.tags,
                 q.intent_id,
                 i.name AS intent_name,
-                i.answer AS intent_answer
+                i.answer AS intent_answer,
+                i.tags
              FROM {$this->questions_table} q
              LEFT JOIN {$this->intents_table} i ON q.intent_id = i.id
              WHERE q.vector_id IN ($placeholders)",

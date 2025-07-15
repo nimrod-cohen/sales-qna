@@ -15,6 +15,8 @@ class SalesQnaAdminPanel {
         this.reloadIntends();
         this.intentSearch();
 
+        JSUtils.addGlobalEventListener(document, '#qna-settings-toggle', 'click', this.toggleSettings);
+
         JSUtils.addGlobalEventListener(document, '#create-new-intent', 'click', this.createNewIntent);
         JSUtils.addGlobalEventListener(document, '#save-new-intent', 'click', this.saveNewIntent);
         JSUtils.addGlobalEventListener(document, '#cancel-new-intent', 'click', this.cancelNewIntent);
@@ -36,6 +38,7 @@ class SalesQnaAdminPanel {
             const index = event.target.dataset.index;
             this.saveTagEdit(index);
         });
+
         JSUtils.addGlobalEventListener(document, '.tags-display-mode', 'click', (event) => {
             const el = event.target.closest('.tags-display-mode');
             if (!el) return;
@@ -43,6 +46,7 @@ class SalesQnaAdminPanel {
             const index = el.dataset.index;
             this.enterTagEditMode(index);
         });
+
 
         document.addEventListener('keypress', this.handleEnterKeyPress);
         document.addEventListener('blur', (event) => {
@@ -154,6 +158,7 @@ class SalesQnaAdminPanel {
         document.getElementById('answerText').value = intent.answer;
         this.originalAnswer = intent.answer;
 
+        this.renderTags(intent.tags);
         this.renderQuestions(intent.questions);
         this.updateQuestionCounter();
     }
@@ -225,7 +230,7 @@ class SalesQnaAdminPanel {
 
     saveEditIntent = () => {
         if (!this.currentIntentId) return;
-        console.log('test');
+
         const newName = document.getElementById('editIntentName').value.trim();
 
         if (!newName) {
@@ -508,10 +513,11 @@ class SalesQnaAdminPanel {
             .slice(0, 10);
     }
 
-    enterTagEditMode = (questionIndex) => {
-        const displayMode = document.getElementById(`tagsDisplay${questionIndex}`);
-        const editMode = document.getElementById(`tagsEdit${questionIndex}`);
-        const input = document.getElementById(`tagsInput${questionIndex}`);
+    enterTagEditMode = () => {
+
+        const displayMode = document.getElementById(`tagsDisplay`);
+        const editMode = document.getElementById(`tagsEdit`);
+        const input = document.getElementById(`tagsInput`);
 
         displayMode.style.display = 'none';
         editMode.classList.add('active');
@@ -523,9 +529,9 @@ class SalesQnaAdminPanel {
         }, 100);
     }
 
-    exitTagEditMode = (questionIndex) => {
-        const displayMode = document.getElementById(`tagsDisplay${questionIndex}`);
-        const editMode = document.getElementById(`tagsEdit${questionIndex}`);
+    exitTagEditMode = () => {
+        const displayMode = document.getElementById(`tagsDisplay`);
+        const editMode = document.getElementById(`tagsEdit`);
 
         editMode.classList.remove('active');
         displayMode.style.display = 'block';
@@ -534,22 +540,22 @@ class SalesQnaAdminPanel {
     saveTagEdit = (questionIndex) => {
         if (!this.currentIntentId) return;
 
-        const input = document.getElementById(`tagsInput${questionIndex}`);
+        const input = document.getElementById(`tagsInput`);
         const tagString = input.value;
         const tags = this.parseTags(tagString);
 
         if (tags.length === 0) return;
 
         const intentsData = this.state.get('intents');
-        const question = intentsData[this.currentIntentId].questions[questionIndex];
+        const intent = intentsData[this.currentIntentId];
 
-        if (typeof question === 'string') {
-            intentsData[this.currentIntentId].questions[questionIndex] = {
+        if (typeof intent === 'string') {
+            intentsData[this.currentIntentId].tags = {
                 text: question,
                 tags: tags
             };
         } else {
-            question.tags = tags;
+            intent.tags = tags;
         }
 
         this.updateTagsDisplay(questionIndex, tags);
@@ -557,7 +563,7 @@ class SalesQnaAdminPanel {
         this.renderIntentList();
 
         const data = {
-            id: intentsData[this.currentIntentId].questions[questionIndex].id,
+            id: intentsData[this.currentIntentId].id,
             tags: tags,
         };
 
@@ -573,9 +579,9 @@ class SalesQnaAdminPanel {
         if (!this.currentIntentId) return;
 
         const intentsData = this.state.get('intents');
-        const question = intentsData[this.currentIntentId].questions[questionIndex];
-        const originalTags = typeof question === 'object' ? (question.tags || []) : [];
-        const input = document.getElementById(`tagsInput${questionIndex}`);
+        const intent = intentsData[this.currentIntentId];
+        const originalTags = typeof intent === 'object' ? (intent.tags || []) : [];
+        const input = document.getElementById(`tagsInput`);
 
         input.value = originalTags.join(', ');
 
@@ -583,17 +589,56 @@ class SalesQnaAdminPanel {
     }
 
     updateTagsDisplay = (questionIndex, tags) => {
-        const displayContainer = document.querySelector(`#tagsDisplay${questionIndex} .tags-display`);
+        const displayContainer = document.querySelector(`#tagsDisplay .tags-display`);
 
         displayContainer.innerHTML = this.renderTagsDisplay(tags);
 
         // Update empty state class
-        const displayMode = document.getElementById(`tagsDisplay${questionIndex}`);
+        const displayMode = document.getElementById(`tagsDisplay`);
         if (tags.length === 0) {
             displayMode.classList.add('empty');
         } else {
             displayMode.classList.remove('empty');
         }
+    }
+
+    renderTags = (tags) => {
+        const tagsList = document.getElementById('tagsList');
+        tags = typeof tags === 'object' ? (tags || []) : [];
+
+        tagsList.innerHTML = `
+        <div class="intents-tags-section">
+            <div class="tags-container">
+                <!-- Display Mode -->
+                <div class="tags-display-mode ${tags.length === 0 ? 'empty' : ''}" id="tagsDisplay">
+                    <div class="tags-label">
+                        🏷️ Tags
+                        <span class="tags-edit-hint">Click to edit</span>
+                    </div>
+                    <div class="tags-display">
+                        ${this.renderTagsDisplay(tags)}
+                    </div>
+                </div>
+    
+                <!-- Edit Mode -->
+                <div class="tags-edit-mode" id="tagsEdit">
+                    <div class="tags-input-group">
+                        <divclass="tags-label">✏️ Edit Tags</div>
+                        <input type="text" class="tags-input" id="tagsInput" value="${tags.join(', ')}"
+                               placeholder="Enter tags separated by commas (e.g. pricing, support, features)">
+                            <div class="tags-actions">
+                                <button id="save-tag-edit" class="tags-btn tags-btn-save">
+                                    💾 Save
+                                </button>
+                                <button id="cancel-tag-edit" class="tags-btn tags-btn-cancel">
+                                    ❌ Cancel
+                                </button>
+                            </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
     }
 
     renderTagsDisplay = (tags) => {
@@ -626,36 +671,7 @@ class SalesQnaAdminPanel {
                         </button>
                     </div>
                 </div>
-                <div class="question-tags-section">
-            <div class="tags-container">
-                <!-- Display Mode -->
-                <div class="tags-display-mode ${questionTags.length === 0 ? 'empty' : ''}" data-index="${index}" id="tagsDisplay${index}">
-                    <div class="tags-label">
-                        🏷️ Tags 
-                        <span class="tags-edit-hint">Click to edit</span>
-                    </div>
-                    <div class="tags-display">
-                        ${this.renderTagsDisplay(questionTags)}
-                    </div>
-                </div>
-                
-                <!-- Edit Mode -->
-                <div class="tags-edit-mode" id="tagsEdit${index}">
-                    <div class="tags-input-group">
-                        <div class="tags-label">✏️ Edit Tags</div>
-                        <input type="text" class="tags-input" id="tagsInput${index}" data-index="${index}" value="${questionTags.join(', ')}"
-                               placeholder="Enter tags separated by commas (e.g. pricing, support, features)">
-                        <div class="tags-actions">
-                            <button id="save-tag-edit" class="tags-btn tags-btn-save" data-index="${index}">
-                                💾 Save
-                            </button>
-                            <button id="cancel-tag-edit" class="tags-btn tags-btn-cancel"  data-index="${index}">
-                                ❌ Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
+                <div class="question-tags-section">`;
         return div;
     }
 
@@ -751,5 +767,12 @@ class SalesQnaAdminPanel {
             cancelBtn.addEventListener('click', handleCancel);
             overlay.addEventListener('click', handleOverlayClick);
         });
+    }
+
+    toggleSettings = () => {
+        const content = document.querySelector('#qna-settings-content');
+        if (content) {
+            content.classList.toggle('qna-hidden');
+        }
     }
 }
