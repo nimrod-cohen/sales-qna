@@ -41,7 +41,7 @@ class GitHubPluginUpdater {
   }
 
   public function __construct($base_file) {
-    $this->plugin_file = str_replace(WP_PLUGIN_DIR . '/', '', $base_file);
+    $this->plugin_file = plugin_basename($base_file);
     $this->plugin_slug = explode('/', plugin_basename($base_file))[0];
     $this->latest_release_cache_key = $this->plugin_slug . '_release';
     $this->cache_allowed = true;
@@ -150,8 +150,9 @@ class GitHubPluginUpdater {
       return false;
     }
 
+    $tag_name = $this->latest_release["tag_name"] ?? '';
     $this->latest_release = json_decode(wp_remote_retrieve_body($response), true);
-    $this->latest_release["version"] = preg_replace('/[^0-9.]/', '', $this->latest_release["tag_name"]);
+    $this->latest_release["version"] = preg_replace('/[^0-9.]/', '', $tag_name);
 
     if ($this->cache_allowed) {
       set_transient($this->latest_release_cache_key, $this->latest_release, 5 * MINUTE_IN_SECONDS);

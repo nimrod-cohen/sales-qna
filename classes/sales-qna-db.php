@@ -10,8 +10,6 @@ class SalesQnADB {
   private static $_instance = null;
   private $questions_table = null;
   private $intents_table = null;
-  private $vector_table = null;
-
   private $embedding_provider;
   private $vector_provider;
 
@@ -19,7 +17,6 @@ class SalesQnADB {
     global $wpdb;
     $this->questions_table = $wpdb->prefix . "sales_qna_questions";
     $this->intents_table = $wpdb->prefix . "sales_qna_intents";
-    $this->vector_table = $wpdb->prefix . "sales_qna_vector";
 
     $this->embedding_provider = new OpenAiProvider();
     $this->vector_provider = new VectorTableProvider();
@@ -39,7 +36,6 @@ class SalesQnADB {
 
     $charset_collate = $wpdb->get_charset_collate();
 
-    // Create table with intent_id as primary key, answer as LONGTEXT, created_at timestamp
     $sql = " CREATE TABLE $this->intents_table (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
@@ -82,8 +78,8 @@ class SalesQnADB {
   public static function uninstall() {
     global $wpdb;
     $tables = [
-      $wpdb->prefix . 'sales_qna_topics',
-      $wpdb->prefix . 'sales_qna_questions'
+      $wpdb->prefix . 'sales_qna_questions',
+      $wpdb->prefix . 'sales_qna_intents',
     ];
 
     foreach ($tables as $table) {
@@ -225,10 +221,6 @@ class SalesQnADB {
     return array_values($intents);
   }
 
-  public function insert_embedding($content){
-    return $this->vector_provider->insert($content);
-  }
-
   public function get_answers(string $question) {
     $embedding = $this->embedding_provider->get_embedding($question);
     $vector_results = $this->vector_provider->search($embedding);
@@ -247,6 +239,10 @@ class SalesQnADB {
     $questions = $this->get_questions_by_vector_ids(array_column($vector_data, 'vector_id'));
 
     return $this->group_by_intent($vector_data, $questions);
+  }
+
+  private function insert_embedding($content){
+    return $this->vector_provider->insert($content);
   }
 
   private function get_questions_by_vector_ids(array $vector_ids): array {

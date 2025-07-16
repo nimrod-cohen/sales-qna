@@ -43,14 +43,15 @@ final class SalesQnA {
 
     add_action('admin_menu', [$this, 'register_admin_page']);
     add_action('rest_api_init', [$this, 'register_api_routes']);
-    add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
 
-    add_action('wp_enqueue_scripts', [$this, 'sales_qna_enqueue_shortcode_assets']);
+    add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+    add_action('wp_enqueue_scripts', [$this, 'enqueue_shortcode_assets' ]);
+
     add_shortcode('sales_qna_search_page', [$this, 'render_search_page']);
 
-//    add_action('admin_init', function () {
-//      $updater = new \SalesQnA\GitHubPluginUpdater(__FILE__);
-//    });
+    add_action('admin_init', function () {
+      $updater = new \SalesQnA\GitHubPluginUpdater(__FILE__);
+    });
   }
 
   public function register_api_routes() {
@@ -65,13 +66,17 @@ final class SalesQnA {
     register_rest_route('sales-qna/v1', '/questions/delete/', [
       'methods' => 'POST',
       'callback' => [$this, 'delete_question'],
-      'permission_callback' => '__return_true',
+      'permission_callback' => function() {
+        return current_user_can('manage_options');
+      }
     ]);
 
     register_rest_route('sales-qna/v1', '/questions/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_question'],
-      'permission_callback' => '__return_true',
+      'permission_callback' => function() {
+        return current_user_can('manage_options');
+      }
     ]);
   }
 
@@ -79,7 +84,9 @@ final class SalesQnA {
     register_rest_route('sales-qna/v1', '/tags/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_tags'],
-      'permission_callback' => '__return_true',
+      'permission_callback' => function() {
+        return current_user_can('manage_options');
+      }
     ]);
   }
 
@@ -93,13 +100,17 @@ final class SalesQnA {
     register_rest_route('sales-qna/v1', '/intents/delete/', [
       'methods' => 'POST',
       'callback' => [$this, 'delete_intent'],
-      'permission_callback' => '__return_true',
+      'permission_callback' => function() {
+        return current_user_can('manage_options');
+      }
     ]);
 
     register_rest_route('sales-qna/v1', '/intents/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_intent'],
-      'permission_callback' => '__return_true',
+      'permission_callback' => function() {
+        return current_user_can('manage_options');
+      }
     ]);
   }
 
@@ -175,6 +186,14 @@ final class SalesQnA {
     );
   }
 
+  public function get_answers($request) {
+    $input = $request->get_json_params();
+    $search_term = sanitize_text_field($input['search'] ?? '');
+
+    $response = $this->db->get_answers($search_term);
+    return rest_ensure_response($response);
+  }
+
   public function get_all_intents() {
     $intends = $this->db->get_all_intents();
     return rest_ensure_response($intends);
@@ -247,30 +266,6 @@ final class SalesQnA {
     return new WP_REST_Response(['status' => 'success'], 200);
   }
 
-  public function render_admin_page() {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-      if (isset($_POST[self::OPENAI_API_KEY])) {
-        $api_key = sanitize_text_field($_POST[self::OPENAI_API_KEY]);
-        self::update_option(self::OPENAI_API_KEY, $api_key);
-      }
-
-      if (isset($_POST['toggle_direction'])) {
-        $dir = $_POST['text_direction'] === 'rtl' ? 'rtl' : 'ltr';
-        self::update_option('text_direction', $dir);
-      }
-    }
-
-    include plugin_dir_path(__FILE__) . 'admin/admin.php';
-  }
-
-  public function get_answers($request) {
-    $input = $request->get_json_params();
-    $search_term = sanitize_text_field($input['search'] ?? '');
-
-    $response = $this->db->get_answers($search_term);
-    return rest_ensure_response($response);
-  }
-
   public function save_settings($request) {
     $params = $request->get_json_params();
 
@@ -283,6 +278,17 @@ final class SalesQnA {
     }
 
     return rest_ensure_response(['status' => 'success']);
+  }
+
+  public function render_admin_page() {
+    include plugin_dir_path(__FILE__) . 'admin/admin.php';
+  }
+
+  public function render_search_page() {
+    ob_start();
+    include plugin_dir_path( __FILE__ ) . 'public/search.php';
+
+    return ob_get_clean();
   }
 
   public function enqueue_admin_assets($hook) {
@@ -300,14 +306,7 @@ final class SalesQnA {
     self::enqueue_style('sales-qna-panel-style', 'assets/sales-qna-admin-panel.css', []);
   }
 
-  public function render_search_page() {
-    ob_start();
-    include plugin_dir_path( __FILE__ ) . 'public/search.php';
-
-    return ob_get_clean();
-  }
-
-  function sales_qna_enqueue_shortcode_assets() {
+  public function enqueue_shortcode_assets() {
     if (is_singular() && has_shortcode(get_post()->post_content, 'sales_qna_search_page')) {
       self::enqueue_script('sales-qna-search', 'assets/sales-qna-search.js', ['wpjsutils']);
       self::enqueue_style('sales-qna-search', 'assets/sales-qna-search.css', []);
