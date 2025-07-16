@@ -66,7 +66,6 @@ class SalesQnaAdminPanel {
                 this.saveTagEdit(input.dataset.index);
             }
         }, true);
-
     }
 
     showStatus = (message, type = 'success') => {
@@ -865,13 +864,16 @@ class SalesQnaAdminPanel {
     toggleRTL = () => {
         const toggle = document.getElementById('toggle-rtl-switch');
         const isActive = toggle.classList.contains('active');
+        const confirmOverlay = document.getElementById('confirmOverlay');
 
         if (isActive) {
             toggle.classList.remove('active');
             document.querySelector('.sales-qna-container')?.classList.remove('rtl');
+            confirmOverlay?.classList.remove('rtl');
         } else {
             toggle.classList.add('active');
             document.querySelector('.sales-qna-container')?.classList.add('rtl');
+            confirmOverlay?.classList.add('rtl');
         }
     }
 
