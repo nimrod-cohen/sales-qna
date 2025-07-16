@@ -877,20 +877,36 @@ class SalesQnaAdminPanel {
 
     highlightSearchInput = (inputElement, searchTerm) => {
         const text = inputElement.value;
-        const lowerSearch = searchTerm.toLowerCase();
-        const lowerText = text.toLowerCase();
+        const lowerSearch = (searchTerm || '').toLowerCase();
+        const lowerText = (text || '').toLowerCase();
 
         if (!text || !searchTerm || !lowerText.includes(lowerSearch)) return;
 
-        inputElement.style.backgroundImage = `
-        linear-gradient(
-            to right,
-            yellow 0%,
-            yellow ${(lowerText.indexOf(lowerSearch) / text.length) * 100}%,
-            yellow ${((lowerText.indexOf(lowerSearch) + searchTerm.length) / text.length) * 100}%,
-            transparent ${((lowerText.indexOf(lowerSearch) + searchTerm.length) / text.length) * 100}%,
-            transparent 100%
-        )
-    `;
-    }
+        const containerIsRTL = document.querySelector('.sales-qna-container')?.classList.contains('rtl');
+
+        const startPercent = (lowerText.indexOf(lowerSearch) / text.length) * 100;
+        const endPercent = ((lowerText.indexOf(lowerSearch) + searchTerm.length) / text.length) * 100;
+
+        if (containerIsRTL) {
+            inputElement.style.backgroundImage = `
+            linear-gradient(
+                to left,
+                yellow ${100 - startPercent}%,
+                yellow ${100 - endPercent}%,
+                transparent ${100 - endPercent}%,
+                transparent 0%
+            )
+        `;
+        } else {
+            inputElement.style.backgroundImage = `
+            linear-gradient(
+                to right,
+                yellow ${startPercent}%,
+                yellow ${endPercent}%,
+                transparent ${endPercent}%,
+                transparent 100%
+            )
+        `;
+        }
+    };
 }
