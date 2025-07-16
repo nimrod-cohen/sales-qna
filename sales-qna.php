@@ -270,7 +270,7 @@ final class SalesQnA {
     $params = $request->get_json_params();
 
     if (!empty($params['apiKey'])) {
-      self::update_option('openai_api_key', sanitize_text_field($params['apiKey']));
+      self::update_option($this->OPENAI_API_KEY, sanitize_text_field($params['apiKey']));
     }
 
     if (!empty($params['direction']) && in_array($params['direction'], ['ltr', 'rtl'])) {

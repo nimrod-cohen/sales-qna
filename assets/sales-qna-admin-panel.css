@@ -848,49 +848,54 @@ body {
 }
 
 @media (max-width: 768px) {
-    .container {
+    .sales-qna-container {
         padding: 20px 15px;
-    }
 
-    .main-layout {
-        grid-template-columns: 1fr;
-        gap: 20px;
-    }
+         .main-layout {
+            display:grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
 
-    .sidebar {
-        position: static;
-        order: 2;
-    }
+            & .sidebar {
+                position: static;
+                order: 1;
+            }
 
-    .content-panel {
-        order: 1;
-    }
+            & .content-panel {
+                order: 2;
+            }
 
-    .intent-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-    }
+            & .question-input {
+                width: 100%;
+            }
+        }
 
-    .intent-actions {
-        justify-content: flex-end;
-    }
+        & .intent-header {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+        }
 
-    .form-actions {
-        flex-direction: column;
-    }
+        & .intent-actions {
+            justify-content: flex-end;
+        }
 
-    .question-content {
-        flex-direction: column;
-        gap: 8px;
-    }
+        & .form-actions {
+            flex-direction: column;
+        }
 
-    .question-actions {
-        opacity: 1;
-        justify-content: flex-end;
+        & .question-content {
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        & .question-actions {
+            opacity: 1;
+            justify-content: flex-end;
+        }
+
     }
 }
-
 
 /* Settings Button */
 .settings-trigger {

@@ -8,6 +8,7 @@ class SalesQnaAdminPanel {
 
     currentIntentId = null;
     originalAnswer = '';
+    searchedString = ''
 
     init = async () => {
         this.state.listen('intents', () => this.renderIntentList(''));
@@ -95,11 +96,25 @@ class SalesQnaAdminPanel {
         const intentList = document.getElementById('intentList');
         intentList.innerHTML = '';
 
+        this.searchedString = '';
+
         let intentsData = this.state.get('intents');
 
-        const filteredIntents = Object.entries(intentsData).filter(([id, intent]) =>
-            intent.name.toLowerCase().includes(filter.toLowerCase())
-        );
+        const lowerFilter = filter.toLowerCase().trim();
+        const hasFilter = lowerFilter.length > 0;
+
+        const filteredIntents = Object.entries(intentsData).filter(([id, intent]) => {
+            if (!hasFilter) return true; // Show all if no filter
+
+            const nameMatches = intent.name.toLowerCase().includes(lowerFilter);
+            const questionsMatch = intent.questions?.some(question =>
+                question.text?.toLowerCase().includes(lowerFilter)
+            );
+
+            this.searchedString = lowerFilter;
+            return nameMatches || questionsMatch;
+        });
+
         if (filteredIntents.length === 0) {
             intentList.innerHTML = `
                     <div class="empty-state">
@@ -677,7 +692,14 @@ class SalesQnaAdminPanel {
                         </button>
                     </div>
                 </div>
-                <div class="question-tags-section">`;
+                `;
+
+        // Highlight matching text in the input (if searchedString exists)
+        if (this.searchedString && question.text) {
+            const input = div.querySelector(`#question-input-${index}`);
+            this.highlightSearchInput(input, this.searchedString);
+        }
+
         return div;
     }
 
@@ -851,5 +873,24 @@ class SalesQnaAdminPanel {
             toggle.classList.add('active');
             document.querySelector('.sales-qna-container')?.classList.add('rtl');
         }
+    }
+
+    highlightSearchInput = (inputElement, searchTerm) => {
+        const text = inputElement.value;
+        const lowerSearch = searchTerm.toLowerCase();
+        const lowerText = text.toLowerCase();
+
+        if (!text || !searchTerm || !lowerText.includes(lowerSearch)) return;
+
+        inputElement.style.backgroundImage = `
+        linear-gradient(
+            to right,
+            yellow 0%,
+            yellow ${(lowerText.indexOf(lowerSearch) / text.length) * 100}%,
+            yellow ${((lowerText.indexOf(lowerSearch) + searchTerm.length) / text.length) * 100}%,
+            transparent ${((lowerText.indexOf(lowerSearch) + searchTerm.length) / text.length) * 100}%,
+            transparent 100%
+        )
+    `;
     }
 }
