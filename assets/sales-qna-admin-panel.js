@@ -14,8 +14,14 @@ class SalesQnaAdminPanel {
 
         this.reloadIntends();
         this.intentSearch();
+        this.loadSettings();
 
-        JSUtils.addGlobalEventListener(document, '#qna-settings-toggle', 'click', this.toggleSettings);
+        JSUtils.addGlobalEventListener(document, '#open-settings-button', 'click', this.toggleSettings);
+        JSUtils.addGlobalEventListener(document, '#close-settings-button', 'click', this.toggleSettings);
+        JSUtils.addGlobalEventListener(document, '#settings-overlay', 'click', this.toggleSettings);
+        JSUtils.addGlobalEventListener(document, '#save-settings-button', 'click', this.saveSettings);
+        JSUtils.addGlobalEventListener(document, '#toggle-rtl-label', 'click', this.toggleRTL);
+        JSUtils.addGlobalEventListener(document, '#toggle-rtl-switch', 'click', this.toggleRTL);
 
         JSUtils.addGlobalEventListener(document, '#create-new-intent', 'click', this.createNewIntent);
         JSUtils.addGlobalEventListener(document, '#save-new-intent', 'click', this.saveNewIntent);
@@ -677,9 +683,14 @@ class SalesQnaAdminPanel {
 
     apiRequest = async ({url, method = 'POST', body = {}, showError = true, showSuccess = false}) => {
         try {
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(SalesQnASettings.nonce && { 'X-WP-Nonce': SalesQnASettings.nonce })
+            };
+
             const response = await fetch(url, {
                 method,
-                headers: {'Content-Type': 'application/json'},
+                headers,
                 body: JSON.stringify(body)
             });
 
@@ -770,9 +781,75 @@ class SalesQnaAdminPanel {
     }
 
     toggleSettings = () => {
-        const content = document.querySelector('#qna-settings-content');
-        if (content) {
-            content.classList.toggle('qna-hidden');
+        const panel = document.getElementById('settingsPanel');
+        const overlay = document.querySelector('.settings-overlay');
+
+        panel.classList.toggle('open');
+        overlay.classList.toggle('active');
+
+        // Prevent body scroll when panel is open
+        if (panel.classList.contains('open')) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+    }
+
+    closeSettings = () =>{
+        const panel = document.getElementById('settingsPanel');
+        const overlay = document.querySelector('.settings-overlay');
+
+        panel.classList.remove('open');
+        overlay.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    loadSettings = () => {
+            const direction = SalesQnASettings.direction;
+            const apiKey = SalesQnASettings.apiKey;
+
+            console.log(direction);
+            if (direction === 'rtl') {
+                document.querySelector('.sales-qna-container')?.classList.add('rtl');
+                document.getElementById('toggle-rtl-switch').classList.add('active');
+            }
+
+            if (apiKey) {
+                document.getElementById('apiKey').value = apiKey;
+            }
+    }
+
+    saveSettings = () => {
+        const apiKeyInput = document.getElementById('apiKey');
+        const dir = document.querySelector('.sales-qna-container')?.classList.contains('rtl') ? 'rtl' : 'ltr';
+
+        const apiKey = apiKeyInput.value.trim();
+
+        const data = {
+            apiKey: apiKey,
+            direction: dir
+        }
+        this.apiRequest({
+            url: '/wp-json/sales-qna/v1/settings/save',
+            body: data
+        }).then(() => {
+            this.showStatus('Settings saved successfully!', 'success');
+            setTimeout(this.closeSettings, 1500);
+        }).catch((error) => {
+            this.showStatus(error.message || 'An error occurred', 'error');
+        });
+    }
+
+    toggleRTL = () => {
+        const toggle = document.getElementById('toggle-rtl-switch');
+        const isActive = toggle.classList.contains('active');
+
+        if (isActive) {
+            toggle.classList.remove('active');
+            document.querySelector('.sales-qna-container')?.classList.remove('rtl');
+        } else {
+            toggle.classList.add('active');
+            document.querySelector('.sales-qna-container')?.classList.add('rtl');
         }
     }
 }

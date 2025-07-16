@@ -58,6 +58,7 @@ final class SalesQnA {
     $this->register_tag_routes();
     $this->register_intent_routes();
     $this->register_answer_routes();
+    $this->register_settings_routes();
   }
 
   private function register_question_routes() {
@@ -110,12 +111,14 @@ final class SalesQnA {
     ]);
   }
 
-  public function enqueue_admin_assets($hook) {
-    if ($hook !== 'toplevel_page_sales-qna') {
-      return;
-    }
-    self::enqueue_script('sales-qna-script', 'assets/sales-qna-admin-panel.js', ['wpjsutils']);
-    self::enqueue_style('sales-qna-panel-style', 'assets/sales-qna-admin-panel.css', []);
+  public function register_settings_routes() {
+    register_rest_route('sales-qna/v1', '/settings/save', [
+      'methods'             => 'POST',
+      'callback'            => [$this, 'save_settings'],
+      'permission_callback' => function () {
+        return current_user_can('manage_options');
+      },
+    ]);
   }
 
   private static function enqueue_style($handle, $src, $deps = []) {
@@ -266,6 +269,35 @@ final class SalesQnA {
 
     $response = $this->db->get_answers($search_term);
     return rest_ensure_response($response);
+  }
+
+  public function save_settings($request) {
+    $params = $request->get_json_params();
+
+    if (!empty($params['apiKey'])) {
+      self::update_option('openai_api_key', sanitize_text_field($params['apiKey']));
+    }
+
+    if (!empty($params['direction']) && in_array($params['direction'], ['ltr', 'rtl'])) {
+      self::update_option('text_direction', $params['direction']);
+    }
+
+    return rest_ensure_response(['status' => 'success']);
+  }
+
+  public function enqueue_admin_assets($hook) {
+    if ($hook !== 'toplevel_page_sales-qna') {
+      return;
+    }
+    self::enqueue_script('sales-qna-script', 'assets/sales-qna-admin-panel.js', ['wpjsutils']);
+
+    wp_localize_script('sales-qna-script', 'SalesQnASettings', [
+      'apiKey'   => SalesQnA::get_option( 'openai_api_key', '' ),
+      'direction' => SalesQnA::get_option('text_direction', 'ltr'),
+      'nonce'     => wp_create_nonce('wp_rest'),
+    ]);
+
+    self::enqueue_style('sales-qna-panel-style', 'assets/sales-qna-admin-panel.css', []);
   }
 
   public function render_search_page() {

@@ -2,7 +2,7 @@
 $plugin_version = SalesQnA::version();
 $dir = SalesQnA::get_option('text_direction', 'ltr');
 ?>
-<div class="sales-qna-container"  style="direction:<?php echo esc_attr($dir); ?>;text-align:<?php echo($dir === 'rtl' ? 'right' : 'left'); ?>;">
+<div class="sales-qna-container">
     <!-- Header -->
     <div class="sales-qna-header">
         <h1>Q&A Admin Panel</h1>
@@ -128,33 +128,17 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
             </div>
 
         </div>
-
-        <div class="sales-qna-settings">
-            <div id="qna-settings-toggle" class="qna-settings-toggle">Settings</div>
-            <div id="qna-settings-content" class="qna-hidden qna-settings-content sales-qna-section">
-                <form method="post" class="rtl-switch">
-                    <label class="switch-title">RTL:</label>
-                    <label class="switch">
-                        <input type="checkbox" name="text_direction" value="rtl"
-                               onchange="this.form.submit();"<?php echo checked( $dir, 'rtl', false ); ?>>
-                        <span class="slider"></span>
-                    </label>
-                    <input type="hidden" name="toggle_direction" value="1">
-                </form>
-                <form method="post" class="openai-settings" style="margin-top: 20px;">
-                    <label for="openai_api_key"><strong>OpenAI API Key:</strong></label>
-                    <input type="text" name="openai_api_key" id="openai_api_key"
-                           value="<?php echo esc_attr( SalesQnA::get_option( 'openai_api_key', '' ) ); ?>"
-                           style="width: 100%;"/>
-                    <button type="submit" class="btn btn-success" style="margin-top: 10px;">Save API Key</button>
-                </form>
-            </div>
-        </div>
     </div>
+
+    <!-- Settings Trigger Button -->
+    <button class="settings-trigger" id="open-settings-button" aria-label="Open Settings">
+        ⚙️
+    </button>
+
 </div>
 
 <!-- Custom Confirm Dialog -->
-<div id="confirmOverlay" class="confirm-overlay" style="direction:<?php echo esc_attr($dir); ?>;text-align:<?php echo($dir === 'rtl' ? 'right' : 'left'); ?>;">
+<div id="confirmOverlay" class="confirm-overlay <?php echo esc_attr($dir); ?>">
     <div class="confirm-dialog">
         <div class="confirm-header">
             <div id="confirmIcon" class="confirm-icon">
@@ -173,3 +157,61 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
     </div>
 </div>
 
+<!-- Settings Overlay -->
+<div class="settings-overlay" id="settings-overlay"></div>
+
+<!-- Settings Panel -->
+<div class="settings-panel" id="settingsPanel">
+    <div class="settings-header">
+        <h2 class="settings-title">
+            <span>⚙️</span>
+            Settings
+        </h2>
+        <button class="close-btn" id="close-settings-button" aria-label="Close Settings">
+            ✕
+        </button>
+    </div>
+
+    <div class="settings-content">
+        <!-- RTL Language Support -->
+        <div class="setting-group">
+            <label class="setting-label">Language Direction</label>
+            <p class="setting-description">
+                Enable right-to-left (RTL) support for Arabic, Hebrew, and other RTL languages.
+            </p>
+            <div class="toggle-container">
+                <div class="toggle-switch" id="toggle-rtl-switch">
+                    <div class="toggle-slider"></div>
+                </div>
+                <label class="toggle-label" id="toggle-rtl-label">
+                    Enable RTL Support
+                </label>
+            </div>
+        </div>
+
+        <!-- OpenAI API Key -->
+        <div class="setting-group">
+            <label class="setting-label" for="apiKey">OpenAI API Key</label>
+            <p class="setting-description">
+                Enter your OpenAI API key to enable AI-powered features in the application.
+            </p>
+            <div class="input-container">
+                <input
+                        type="text"
+                        id="apiKey"
+                        class="form-input"
+                        placeholder="sk-..."
+                        autocomplete="off"
+                >
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <button class="btn btn-primary" id="save-settings-button">
+            Save Settings
+        </button>
+
+        <!-- Status Message -->
+        <div id="statusMessage" class="status-message"></div>
+    </div>
+</div>
