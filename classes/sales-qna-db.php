@@ -89,20 +89,21 @@ class SalesQnADB {
     delete_option('sales_qna_plugin_version');  // Use the actual option name
   }
 
-  public function add_question(string $question, string $intentId): int {
+  public function add_question(string $question, string $intentId) {
     global $wpdb;
 
     $embedding = $this->embedding_provider->get_embedding($question);
 
     if (!$embedding) {
-      return false;
+      return 'embedding_failed';
     }
 
     $vectorId = $this->insert_embedding($embedding);
 
     if (!$vectorId) {
-      return false;
+      return 'vector_insert_failed';
     }
+
     $inserted = $wpdb->insert($this->questions_table, [
       'question'   => $question,
       'vector_id' => $vectorId,
@@ -110,7 +111,7 @@ class SalesQnADB {
     ]);
 
     if (!$inserted) {
-      return false;
+      return 'db_insert_failed';
     }
 
     return $wpdb->insert_id;

@@ -20,12 +20,6 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
             </div>
         </div>
 
-        <!-- Customer Question Display -->
-        <div id="customerQuestionDisplay" class="customer-question-display">
-            <div class="customer-question-label">Customer Question</div>
-            <div id="displayedQuestion" class="customer-question-text"></div>
-        </div>
-
         <!-- Loading State -->
         <div id="loadingState" class="loading-state">
             <div class="loading-spinner"></div>

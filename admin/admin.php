@@ -12,6 +12,11 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
     <!-- Status Messages -->
     <div id="statusMessage" class="status-message"></div>
 
+    <!-- Settings Trigger Button -->
+    <button class="settings-trigger" id="open-settings-button" aria-label="Open Settings">
+        ⚙️
+    </button>
+
     <!-- Main Layout -->
     <div class="main-layout">
         <!-- Sidebar with Intent List -->
@@ -69,7 +74,7 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
                         <h2 class="intent-title" id="intentTitle">Intent Name</h2>
                         <div class="intent-actions">
                             <button id="edit-intent" class="btn btn-warning btn-small">
-                                ✏️ Edit Name
+                                ✏️ Edit
                             </button>
                             <button id="delete-intent" class="btn btn-danger btn-small">
                                 🗑️ Delete
@@ -129,12 +134,6 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
 
         </div>
     </div>
-
-    <!-- Settings Trigger Button -->
-    <button class="settings-trigger" id="open-settings-button" aria-label="Open Settings">
-        ⚙️
-    </button>
-
 </div>
 
 <!-- Custom Confirm Dialog -->
@@ -204,6 +203,15 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
                         autocomplete="off"
                 >
             </div>
+        </div>
+
+        <!-- Shortcode Message -->
+        <div class="setting-group">
+            <label class="setting-label">Display Search Panel</label>
+            <p class="setting-description">
+                To add the Q&A search feature to any page, simply use this shortcode:
+                <code>[sales_qna_search_page]</code>
+            </p>
         </div>
 
         <!-- Save Button -->

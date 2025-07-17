@@ -232,8 +232,22 @@ final class SalesQnA {
     $question = stripslashes(sanitize_text_field($input['question'] ?? ''));
     $intentId = !empty($input['intent_id']) ? $input['intent_id'] : false;
 
-    $id = $this->db->add_question($question,  $intentId);
-    return rest_ensure_response(['status' => 'success', 'id' => $id]);
+    $result = $this->db->add_question($question, $intentId);
+
+    if (is_string($result)) {
+      switch ($result) {
+        case 'embedding_failed':
+          return new WP_Error('openai_embedding_error', 'Failed to generate embedding. Check your API key.', ['status' => 400]);
+        case 'vector_insert_failed':
+          return new WP_Error('vector_insert_error', 'Could not insert embedding vector into database.', ['status' => 500]);
+        case 'db_insert_failed':
+          return new WP_Error('db_insert_error', 'Failed to save question to database.', ['status' => 500]);
+        default:
+          return new WP_Error('unknown_error', 'An unknown error occurred.', ['status' => 500]);
+      }
+    }
+
+    return rest_ensure_response(['status' => 'success', 'id' => $result]);
   }
 
   public function delete_question($request) {
@@ -270,7 +284,7 @@ final class SalesQnA {
     $params = $request->get_json_params();
 
     if (!empty($params['apiKey'])) {
-      self::update_option($this->OPENAI_API_KEY, sanitize_text_field($params['apiKey']));
+      self::update_option(SELF::OPENAI_API_KEY, sanitize_text_field($params['apiKey']));
     }
 
     if (!empty($params['direction']) && in_array($params['direction'], ['ltr', 'rtl'])) {

@@ -14,7 +14,6 @@ body {
 .sales-qna-container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 40px 20px;
     position: relative;
 
     &.rtl {
@@ -54,7 +53,7 @@ body {
             top: 20px;
 
             & .sales-qna-section {
-                padding: 24px;
+                padding: 16px;
             }
         }
 
@@ -66,7 +65,7 @@ body {
         }
 
         & .sales-qna-section {
-            padding: 32px;
+            padding: 16px;
 
             & .title {
                 font-size: 1.25rem;
@@ -127,7 +126,7 @@ body {
                 margin-bottom: 20px;
 
                 & .intent-item {
-                    padding: 16px;
+                    padding: 8px;
                     border: 1px solid #e2e8f0;
                     border-radius: 8px;
                     margin-bottom: 8px;
@@ -162,7 +161,7 @@ body {
             }
 
             & .btn {
-                padding: 10px 20px;
+                padding: 8px 12px;
                 border: none;
                 border-radius: 6px;
                 font-size: 0.9rem;
@@ -227,7 +226,7 @@ body {
 
             & .add-intent-btn {
                 width: 100%;
-                padding: 12px;
+                padding: 8px;
                 background: #3b82f6;
                 color: white;
                 border: none;
@@ -289,8 +288,8 @@ body {
 
             & .sales-qna-questions-section {
                 border-top: 1px solid #e2e8f0;
-                padding-top: 32px;
-                margin-top: 32px;
+                padding-top: 4px;
+                margin-top: 8px;
 
                 & .questions-list {
                     margin-bottom: 20px;
@@ -299,7 +298,7 @@ body {
                         background: #f8fafc;
                         border: 1px solid #e2e8f0;
                         border-radius: 8px;
-                        padding: 16px;
+                        padding: 4px;
                         margin-bottom: 12px;
                         transition: all 0.2s ease;
 
@@ -316,24 +315,18 @@ body {
                             & .question-input {
                                 flex: 1;
                                 border: none;
+                                box-shadow: none;
                                 background: transparent;
                                 font-size: 1rem;
                                 color: #374151;
-                                transition: all 1s ease;
 
                                 &:focus {
                                     outline: none;
                                     background: white;
-                                    padding: 8px 12px;
+                                    padding: 4px;
                                     border-radius: 4px;
                                     border: 1px solid #3b82f6;
                                 }
-                            }
-
-                            & .question-input-pending {
-                                padding: 8px 16px;
-                                animation: pulseBackground 3s infinite ease-in-out;
-                                transition: all 1s ease;
                             }
 
                             & .question-actions {
@@ -402,8 +395,8 @@ body {
 
             /* Dynamic Tags Section Styles */
             .sales-qna-tags-section {
-                margin-top: 32px;
-                padding-top: 32px;
+                margin-top: 16px;
+                padding-top: 8px;
                 border-top: 1px solid #e2e8f0;
 
                 & .intents-tags-section {
@@ -847,68 +840,20 @@ body {
     }
 }
 
-@media (max-width: 768px) {
-    .sales-qna-container {
-        padding: 20px 15px;
 
-         .main-layout {
-            display:grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-
-            & .sidebar {
-                position: static;
-                order: 1;
-            }
-
-            & .content-panel {
-                order: 2;
-            }
-
-            & .question-input {
-                width: 100%;
-            }
-        }
-
-        & .intent-header {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 12px;
-        }
-
-        & .intent-actions {
-            justify-content: flex-end;
-        }
-
-        & .form-actions {
-            flex-direction: column;
-        }
-
-        & .question-content {
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        & .question-actions {
-            opacity: 1;
-            justify-content: flex-end;
-        }
-
-    }
-}
 
 /* Settings Button */
 .settings-trigger {
     position: absolute;
-    bottom: -32px;
-    right: 20px;
+    top: 110px;
+    right: 0px;
     background: white;
     color: white;
     border: none;
-    border-radius: 50%;
+    border-radius: 8px;
     width: 56px;
     height: 56px;
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     cursor: pointer;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
@@ -1143,6 +1088,67 @@ body {
     }
 }
 
+@media (max-width: 768px) {
+    .sales-qna-container {
+        padding: 20px 15px;
+
+        .main-layout {
+            display:grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+
+            & .sidebar {
+                position: static;
+                order: 1;
+            }
+
+            & .content-panel {
+                order: 2;
+            }
+
+            & .question-input {
+                width: 100%;
+            }
+
+            & .btn-text {
+                display:none;
+            }
+        }
+
+        & .intent-header {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+        }
+
+        & .intent-actions {
+            justify-content: flex-end;
+        }
+
+        & .form-actions {
+            flex-direction: column;
+        }
+
+        & .question-content {
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        & .question-actions {
+            opacity: 1;
+            justify-content: flex-end;
+        }
+
+    }
+
+    .settings-trigger {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+        right: 16px;
+        top: 146px;
+    }
+}
 
 
 

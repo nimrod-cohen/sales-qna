@@ -25,8 +25,6 @@ class SalesQnASearch {
         this.showLoading(true);
         this.hideResults();
 
-        this.displayCustomerQuestion(question);
-
         try {
             const data = {
                 search: question
@@ -75,11 +73,6 @@ class SalesQnASearch {
             askQuestion.disabled = false;
             askQuestion.innerHTML = '<span>🔍 Find Matches</span>';
         }
-    }
-
-    displayCustomerQuestion = (question)=> {
-        document.getElementById('displayedQuestion').textContent = question;
-        document.getElementById('customerQuestionDisplay').classList.add('show');
     }
 
     displayMatches = (matches) => {

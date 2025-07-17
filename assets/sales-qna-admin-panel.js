@@ -59,7 +59,6 @@ class SalesQnaAdminPanel {
         document.addEventListener('blur', (event) => {
             const input = event.target;
             if (input.classList.contains('question-input')) {
-                input.classList.add('question-input-pending');
                 const index = input.id.split('-')[2];
                 this.updateQuestion(index, input);
             } else if (input.classList.contains('tags-input')) {
@@ -161,6 +160,7 @@ class SalesQnaAdminPanel {
 
         elementToActivate?.classList?.add('active');
 
+
         this.currentIntentId = intentId;
 
         const intent = this.state.get('intents')?.[intentId];
@@ -198,6 +198,7 @@ class SalesQnaAdminPanel {
         }
 
         const intentsData = this.state.get('intents');
+
         // Check for duplicate names
         const existingNames = Object.values(intentsData).map(intent => intent.name.toLowerCase());
         if (existingNames.includes(name.toLowerCase())) {
@@ -206,7 +207,8 @@ class SalesQnaAdminPanel {
         }
 
         // Generate new ID
-        const newId = Math.max(...Object.keys(intentsData).map(Number)) + 1;
+        const existingIds = Object.keys(intentsData).map(Number);
+        const newId = (existingIds.length ? Math.max(...existingIds) + 1 : 0);
 
         // Add to data
         intentsData[newId] = {
@@ -236,7 +238,7 @@ class SalesQnaAdminPanel {
     }
 
     editIntent = () => {
-        if (!this.currentIntentId) return;
+        if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
         const intentsData = this.state.get('intents');
         const intent = intentsData[this.currentIntentId];
@@ -249,7 +251,7 @@ class SalesQnaAdminPanel {
     }
 
     saveEditIntent = () => {
-        if (!this.currentIntentId) return;
+        if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
         const newName = document.getElementById('editIntentName').value.trim();
 
@@ -295,7 +297,7 @@ class SalesQnaAdminPanel {
     }
 
     deleteIntent = async () => {
-        if (!this.currentIntentId) return;
+        if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
         const intentsData = this.state.get('intents');
         const intent = intentsData[this.currentIntentId];
@@ -342,7 +344,7 @@ class SalesQnaAdminPanel {
     }
 
     saveAnswer() {
-        if (!this.currentIntentId) return;
+        if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
         const answerText = document.getElementById('answerText').value.trim();
 
@@ -374,7 +376,7 @@ class SalesQnaAdminPanel {
     }
 
     addNewQuestion = () => {
-        if (!this.currentIntentId) return;
+        if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
         const intentsData = this.state.get('intents');
         const newQuestion = '';
@@ -396,7 +398,7 @@ class SalesQnaAdminPanel {
     }
 
     updateQuestion = (index, input) => {
-        if (!this.currentIntentId) return;
+        if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
         const value = input.value;
         let intentsData = this.state.get('intents');
@@ -416,11 +418,11 @@ class SalesQnaAdminPanel {
                 question: value,
                 intent_id: intentsData[this.currentIntentId].id
             }
+
             this.apiRequest({
                 url: '/wp-json/sales-qna/v1/questions/save',
                 body: data
             }).then((res) => {
-                input.classList.remove('question-input-pending');
                 input.disabled = true;
 
                 intentsData[this.currentIntentId].questions[index] = {
@@ -454,7 +456,7 @@ class SalesQnaAdminPanel {
     }
 
     deleteQuestion = async (id, index) => {
-        if (!this.currentIntentId) return;
+        if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
         const intentsData = this.state.get('intents');
 
@@ -558,7 +560,7 @@ class SalesQnaAdminPanel {
     }
 
     saveTagEdit = (questionIndex) => {
-        if (!this.currentIntentId) return;
+        if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
         const input = document.getElementById(`tagsInput`);
         const tagString = input.value;
@@ -567,7 +569,9 @@ class SalesQnaAdminPanel {
         if (tags.length === 0) return;
 
         const intentsData = this.state.get('intents');
+        console.log(intentsData[1]);
         const intent = intentsData[this.currentIntentId];
+
 
         if (typeof intent === 'string') {
             intentsData[this.currentIntentId].tags = {
@@ -596,7 +600,7 @@ class SalesQnaAdminPanel {
     }
 
     cancelTagEdit = (questionIndex) => {
-        if (!this.currentIntentId) return;
+        if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
         const intentsData = this.state.get('intents');
         const intent = intentsData[this.currentIntentId];
