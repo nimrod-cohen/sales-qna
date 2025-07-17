@@ -120,7 +120,7 @@ class SalesQnA {
     const id = row.dataset.id;
 
     remodaler.show({
-      title: 'Attach/Detach User to affiliate',
+      title: 'Delete Question',
       message: `<div class="modal-content">
         <h2>Delete Question</h2>
         <p>Are you sure you want to delete this question?</p>
