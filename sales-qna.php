@@ -14,6 +14,8 @@
  * Text Domain:   sales-qna
  */
 
+use SalesQnA\Classes\SalesQnADB;
+
 if (!defined('ABSPATH')) {
   exit; // Exit if accessed directly
 }
@@ -23,7 +25,6 @@ final class SalesQnA {
   public const PLUGIN_SLUG = 'sales-qna';
   private const OPENAI_API_KEY = 'openai_api_key';
   private $db = null;
-  private $dfcx = null;
 
   public static function get_instance() {
     if (null === self::$instance) {
@@ -36,45 +37,99 @@ final class SalesQnA {
     $this->db = SalesQnADB::get_instance();
 
     register_activation_hook(__FILE__, [$this->db, 'install']);
-    register_uninstall_hook(__FILE__, [$this->db, 'uninstall']);
+    register_uninstall_hook(__FILE__, [SalesQnADB::class, 'uninstall']);
 
     add_action('plugins_loaded', [$this, 'maybe_upgrade_plugin']);
 
     add_action('admin_menu', [$this, 'register_admin_page']);
     add_action('rest_api_init', [$this, 'register_api_routes']);
+
     add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+    add_action('wp_enqueue_scripts', [$this, 'enqueue_shortcode_assets' ]);
+
+    add_shortcode('sales_qna_search_page', [$this, 'render_search_page']);
 
     add_action('admin_init', function () {
       $updater = new \SalesQnA\GitHubPluginUpdater(__FILE__);
     });
-
-    $this->dfcx = DialogFlowCX::get_instance();
   }
 
   public function register_api_routes() {
-    register_rest_route('sales-qna/v1', '/get/', [
-      'methods' => 'POST',
-      'callback' => [$this, 'get_all_questions'],
-      'permission_callback' => '__return_true'
-    ]);
-    register_rest_route('sales-qna/v1', '/delete/', [
+    $this->register_question_routes();
+    $this->register_tag_routes();
+    $this->register_intent_routes();
+    $this->register_answer_routes();
+    $this->register_settings_routes();
+  }
+
+  private function register_question_routes() {
+    register_rest_route('sales-qna/v1', '/questions/delete/', [
       'methods' => 'POST',
       'callback' => [$this, 'delete_question'],
-      'permission_callback' => '__return_true'
+      'permission_callback' => function() {
+        return current_user_can('manage_options');
+      }
     ]);
-    register_rest_route('sales-qna/v1', '/save/', [
+
+    register_rest_route('sales-qna/v1', '/questions/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_question'],
-      'permission_callback' => '__return_true'
+      'permission_callback' => function() {
+        return current_user_can('manage_options');
+      }
     ]);
   }
 
-  public function enqueue_admin_assets($hook) {
-    if ($hook !== 'toplevel_page_sales-qna') {
-      return;
-    }
-    self::enqueue_script('sales-qna-script', 'assets/sales-qna.js', ['wpjsutils']);
-    self::enqueue_style('sales-qna-style', 'assets/sales-qna.css', []);
+  private function register_tag_routes() {
+    register_rest_route('sales-qna/v1', '/tags/save/', [
+      'methods' => 'POST',
+      'callback' => [$this, 'save_tags'],
+      'permission_callback' => function() {
+        return current_user_can('manage_options');
+      }
+    ]);
+  }
+
+  private function register_intent_routes() {
+    register_rest_route('sales-qna/v1', '/intents/get/', [
+      'methods' => 'GET',
+      'callback' => [$this, 'get_all_intents'],
+      'permission_callback' => '__return_true',
+    ]);
+
+    register_rest_route('sales-qna/v1', '/intents/delete/', [
+      'methods' => 'POST',
+      'callback' => [$this, 'delete_intent'],
+      'permission_callback' => function() {
+        return current_user_can('manage_options');
+      }
+    ]);
+
+    register_rest_route('sales-qna/v1', '/intents/save/', [
+      'methods' => 'POST',
+      'callback' => [$this, 'save_intent'],
+      'permission_callback' => function() {
+        return current_user_can('manage_options');
+      }
+    ]);
+  }
+
+  private function register_answer_routes() {
+    register_rest_route('sales-qna/v1', '/answers/get', [
+      'methods' => 'POST',
+      'callback' => [$this, 'get_answers'],
+      'permission_callback' => '__return_true',
+    ]);
+  }
+
+  public function register_settings_routes() {
+    register_rest_route('sales-qna/v1', '/settings/save', [
+      'methods'             => 'POST',
+      'callback'            => [$this, 'save_settings'],
+      'permission_callback' => function () {
+        return current_user_can('manage_options');
+      },
+    ]);
   }
 
   private static function enqueue_style($handle, $src, $deps = []) {
@@ -101,12 +156,12 @@ final class SalesQnA {
   }
 
   public static function version() {
-    if (!function_exists('get_plugin_data')) {
-      require_once ABSPATH . 'wp-admin/includes/plugin.php';
+    if ( ! defined( 'YOUR_PLUGIN_VERSION' ) ) {
+      $plugin_data = get_file_data( __FILE__, [ 'Version' => 'Version' ] );
+      define( 'YOUR_PLUGIN_VERSION', $plugin_data['Version'] );
     }
 
-    $plugin_data = get_plugin_data(__FILE__);
-    return $plugin_data['Version'];
+    return YOUR_PLUGIN_VERSION;
   }
 
   public function maybe_upgrade_plugin() {
@@ -131,87 +186,144 @@ final class SalesQnA {
     );
   }
 
-  public function get_all_questions($request) {
-    //get the search term from POST
+  public function get_answers($request) {
     $input = $request->get_json_params();
     $search_term = sanitize_text_field($input['search'] ?? '');
 
-    if (!empty($search_term)) {
-      $rows = $this->dfcx->find_intent($search_term);
+    $response = $this->db->get_answers($search_term);
+    return rest_ensure_response($response);
+  }
+
+  public function get_all_intents() {
+    $intends = $this->db->get_all_intents();
+    return rest_ensure_response($intends);
+  }
+
+  public function save_intent( $request ) {
+    $input  = $request->get_json_params();
+    $name   = stripslashes( sanitize_text_field( $input['name'] ?? '' ) );
+    $answer = stripslashes( sanitize_text_field( $input['answer'] ?? '' ) );
+    $id     = $input['id'] ?? false;
+
+    if ( $id ) {
+      $this->db->update_intent( $id, $name, $answer );
     } else {
-      $rows = $this->dfcx->get_intents();
+      $this->db->add_intent( $name );
     }
 
-    //this returns an assoc atray of all intent_ids
-    $answers = $this->db->get_all_questions();
+    return rest_ensure_response( [ 'status' => 'success' ] );
+  }
 
-    foreach ($rows as &$row) {
-      $row['answer'] = $answers[$row['intent_id']] ?? '';
+  public function delete_intent($request) {
+    $input = $request->get_json_params();
+    $id = $input['id'] ?? false;
+
+    if (!$id) {
+      return new WP_Error('invalid_id', 'Invalid ID provided.', ['status' => 400]);
     }
 
-    return rest_ensure_response($rows);
+    $this->db->delete_intent($id);
+
+    return rest_ensure_response(['status' => 'success']);
   }
 
   public function save_question($request) {
     $input = $request->get_json_params();
     $question = stripslashes(sanitize_text_field($input['question'] ?? ''));
-    $answer = stripslashes(sanitize_textarea_field($input['answer'] ?? ''));
     $intentId = !empty($input['intent_id']) ? $input['intent_id'] : false;
 
-    if (!$intentId) {
-      $intentId = $this->dfcx->add_intent($question);
-      if (!$intentId) {
-        return new WP_Error('invalid_id', 'Invalid ID provided.', ['status' => 400]);
-      }
-      $this->db->add_question($intentId, $answer);
-    } else {
-      $this->db->update_question($intentId, $answer);
-    }
-
-    return rest_ensure_response(['status' => 'success']);
+    $id = $this->db->add_question($question,  $intentId);
+    return rest_ensure_response(['status' => 'success', 'id' => $id]);
   }
 
   public function delete_question($request) {
     $input = $request->get_json_params();
-    $intentId = $input['intent_id'] ?? false;
+    $id = $input['id'] ?? false;
 
-    if (!$intentId) {
+    if (!$id) {
       return new WP_Error('invalid_id', 'Invalid ID provided.', ['status' => 400]);
     }
 
-    if ($this->dfcx->delete_intent($intentId)) {
-      $this->db->delete_question($intentId);
-    } else {
-      return new WP_Error('delete_failed', 'Failed to delete question.', ['status' => 500]);
+    $this->db->delete_question($id);
+
+    return rest_ensure_response(['status' => 'success']);
+  }
+
+  public function save_tags($request) {
+    $input = $request->get_json_params();
+    $tags = $input['tags'] ?? [];
+    $id = $input['id'] ?? false;
+
+    $result = $this->db->save_tags($id, $tags);
+
+    if ($result === false) {
+      return new WP_REST_Response([
+        'status' => 'error',
+        'message' => 'Failed to save tags'
+      ], 500);
+    }
+
+    return new WP_REST_Response(['status' => 'success'], 200);
+  }
+
+  public function save_settings($request) {
+    $params = $request->get_json_params();
+
+    if (!empty($params['apiKey'])) {
+      self::update_option($this->OPENAI_API_KEY, sanitize_text_field($params['apiKey']));
+    }
+
+    if (!empty($params['direction']) && in_array($params['direction'], ['ltr', 'rtl'])) {
+      self::update_option('text_direction', $params['direction']);
     }
 
     return rest_ensure_response(['status' => 'success']);
   }
 
   public function render_admin_page() {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-      if (isset($_POST[self::OPENAI_API_KEY])) {
-        $api_key = sanitize_text_field($_POST[self::OPENAI_API_KEY]);
-        self::update_option(self::OPENAI_API_KEY, $api_key);
-      }
-
-      if (isset($_POST['toggle_direction'])) {
-        $dir = $_POST['text_direction'] === 'rtl' ? 'rtl' : 'ltr';
-        self::update_option('text_direction', $dir);
-      }
-    }
-
     include plugin_dir_path(__FILE__) . 'admin/admin.php';
+  }
+
+  public function render_search_page() {
+    ob_start();
+    include plugin_dir_path( __FILE__ ) . 'public/search.php';
+
+    return ob_get_clean();
+  }
+
+  public function enqueue_admin_assets($hook) {
+    if ($hook !== 'toplevel_page_sales-qna') {
+      return;
+    }
+    self::enqueue_script('sales-qna-script', 'assets/sales-qna-admin-panel.js', ['wpjsutils']);
+
+    wp_localize_script('sales-qna-script', 'SalesQnASettings', [
+      'apiKey'   => SalesQnA::get_option( 'openai_api_key', '' ),
+      'direction' => SalesQnA::get_option('text_direction', 'ltr'),
+      'nonce'     => wp_create_nonce('wp_rest'),
+    ]);
+
+    self::enqueue_style('sales-qna-panel-style', 'assets/sales-qna-admin-panel.css', []);
+  }
+
+  public function enqueue_shortcode_assets() {
+    if (is_singular() && has_shortcode(get_post()->post_content, 'sales_qna_search_page')) {
+      self::enqueue_script('sales-qna-search', 'assets/sales-qna-search.js', ['wpjsutils']);
+      self::enqueue_style('sales-qna-search', 'assets/sales-qna-search.css', []);
+    }
   }
 }
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-// Include the main plugin classes
-$directory = plugin_dir_path(__FILE__) . '/classes';
-$files = glob($directory . '/*.php');
-foreach ($files as $file) {
-  require_once $file;
+$subdirs = ['interfaces', 'providers', 'classes'];
+
+foreach($subdirs as $subdir) {
+  $directory = plugin_dir_path(__FILE__) . $subdir;
+  $files = glob($directory . '/*.php');
+  foreach ($files as $file) {
+    require_once $file;
+  }
 }
 
 // Initialize the plugin

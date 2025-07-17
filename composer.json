@@ -2,7 +2,8 @@
     "name": "nimrod-cohen/sales-qna",
     "description": "Sales Q&A plugin",
     "require": {
-        "php": ">=7.4",
-        "google/cloud-dialogflow-cx": "^0.7.1"
+        "php": ">=8.4",
+        "google/cloud-dialogflow-cx": "^0.7.1",
+        "allanpichardo/mysql-vector": "^2.0"
     }
 }
