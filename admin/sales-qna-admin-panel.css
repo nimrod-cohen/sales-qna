@@ -1104,10 +1104,6 @@ body {
             justify-content: flex-end;
         }
 
-        & .form-actions {
-            flex-direction: column;
-        }
-
         & .question-content {
             flex-direction: row;
             gap: 8px;
@@ -1117,10 +1113,6 @@ body {
         & .question-actions {
             opacity: 1;
             justify-content: flex-end;
-        }
-
-        & .status-message {
-            top: 15px;
         }
     }
 

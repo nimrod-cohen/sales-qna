@@ -3,6 +3,8 @@ $plugin_version = SalesQnA::version();
 $dir = SalesQnA::get_option('text_direction', 'ltr');
 ?>
 <div class="sales-qna-container">
+    <div id="statusMessage" class="status-message"></div>
+
     <!-- Header -->
     <div class="sales-qna-header">
         <h1>Q&A Admin Panel</h1>
@@ -158,6 +160,8 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
             <button id="confirmAction" class="confirm-btn confirm-btn-danger">Delete</button>
         </div>
     </div>
+
+
 </div>
 
 <!-- Settings Overlay -->
@@ -226,5 +230,5 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
 </div>
 
 <!-- Status Messages -->
-<div id="statusMessage" class="status-message"></div>
+
 

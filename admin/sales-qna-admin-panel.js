@@ -69,9 +69,15 @@ class SalesQnaAdminPanel {
 
     showStatus = (message, type = 'success') => {
         const statusEl = document.getElementById('statusMessage');
+        const container = document.querySelector('.sales-qna-container');
         statusEl.textContent = message;
         statusEl.className = `status-message status-${type}`;
         statusEl.style.display = 'block';
+
+        if (statusEl && container) {
+            const containerRect = container.getBoundingClientRect();
+            statusEl.style.left = `${containerRect.left + containerRect.width / 2}px`;
+        }
 
         setTimeout(() => {
             statusEl.style.display = 'none';
