@@ -82,11 +82,11 @@ body {
 
                 & .qna-button {
                     margin-top: 16px;
-                    padding: 6px 12px;
+                    padding: 8px 16px;
                     color: white;
                     border: none;
                     border-radius: 8px;
-                    font-size: 0.8rem;
+                    font-size: 1rem;
                     font-weight: 500;
                     cursor: pointer;
                     transition: all 0.2s ease;
@@ -329,6 +329,7 @@ body {
                         display: flex;
                         flex-wrap: wrap;
                         gap: 6px;
+                        margin-top: 16px;
 
                         & .tag {
                             background: #dbeafe;

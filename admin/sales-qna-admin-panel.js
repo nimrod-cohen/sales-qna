@@ -116,7 +116,9 @@ class SalesQnaAdminPanel {
         if (filteredIntents.length === 0) {
             intentList.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">🔍</div>
+                        <div class="empty-state-icon">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </div>
                         <p>No intents found</p>
                     </div>
                 `;
@@ -218,10 +220,10 @@ class SalesQnaAdminPanel {
         };
 
         this.renderIntentList();
-        this.selectIntent(newId);
 
         // Hide form
         this.cancelNewIntent();
+
 
         this.apiRequest({
             url: '/wp-json/sales-qna/v1/intents/save',
@@ -229,6 +231,7 @@ class SalesQnaAdminPanel {
         }).then(() => {
             this.showStatus(`Intent "${name}" created successfully`);
             this.reloadIntends();
+            this.selectIntent(newId);
         });
     }
 
@@ -309,7 +312,6 @@ class SalesQnaAdminPanel {
         }
 
         const confirmed = await this.showConfirmDialog({
-            icon: '🗑️',
             type: 'danger',
             title: 'Delete Intent',
             message: confirmMessage,
@@ -400,42 +402,54 @@ class SalesQnaAdminPanel {
     updateQuestion = (index, input) => {
         if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
-        const value = input.value;
-        let intentsData = this.state.get('intents');
-
+        const value = input.value.trim();
         if (value.length === 0) {
             this.showStatus('Please enter a question', 'error');
             this.removeQuestion(index);
             return;
         }
 
-        intentsData[this.currentIntentId].questions[index] = {
-            text: value.trim()
-        }
+        const intentsData = this.state.get('intents');
+        const intent = intentsData[this.currentIntentId];
+        const question = intent.questions[index] || {};
 
-        if (value.trim()) {
-            const data = {
-                question: value,
-                intent_id: intentsData[this.currentIntentId].id
-            }
+        const existingText = question.text ?? '';
+        const existingId = question.id ?? '';
 
-            this.apiRequest({
-                url: '/wp-json/sales-qna/v1/questions/save',
-                body: data
-            }).then((res) => {
-                input.disabled = true;
+        const isUpdate = existingText !== '';
+        const isSame = existingText === value;
 
-                intentsData[this.currentIntentId].questions[index] = {
+        if (isSame) return;
+
+        // update the local state
+        intent.questions[index] = {
+            id: existingId,
+            text: value
+        };
+
+        const requestData = {
+            question: value,
+            intent_id: intent.id,
+            id: existingId
+        };
+
+        this.apiRequest({
+            url: '/wp-json/sales-qna/v1/questions/save',
+            body: requestData
+        })
+            .then((res) => {
+                // Update with confirmed ID from server
+                intent.questions[index] = {
                     id: res.id,
-                    text: value.trim()
-                }
-                this.renderQuestions(intentsData[this.currentIntentId].questions);
-                this.showStatus('Question added');
-            }).catch(() => {
+                    text: value
+                };
+                this.renderQuestions(intent.questions);
+                this.showStatus(isUpdate ? 'Question updated' : 'Question added');
+            })
+            .catch((error) => {
                 this.removeQuestion(index);
-                this.showStatus('Question not added - server error', 'error');
+                this.showStatus(error, 'error');
             });
-        }
     }
 
     removeQuestion = (index) => {
@@ -461,7 +475,6 @@ class SalesQnaAdminPanel {
         const intentsData = this.state.get('intents');
 
         const confirmed = await this.showConfirmDialog({
-            icon: '🗑️',
             type: 'danger',
             title: 'Delete Question',
             message: `Are you sure you want to delete this question? This action cannot be undone.`,
@@ -519,11 +532,11 @@ class SalesQnaAdminPanel {
     validateTag = (tag) => {
         return tag.trim()
             .toLowerCase()
-            .replace(/[^a-z0-9\-_\s]/g, '')
-            .replace(/\s+/g, ' ')
-            .replace(/^-+|-+$/g, '')
+            .replace(/[^\p{L}\p{N}\-_ ]+/gu, '')  // allow letters (all alphabets), numbers, dash, underscore, and space
+            .replace(/\s+/g, ' ')                // collapse multiple spaces into one
+            .replace(/^-+|-+$/g, '')             // trim leading/trailing dashes
             .trim();
-    }
+    };
 
     parseTags = (tagString) => {
         if (!tagString || typeof tagString !== 'string') return [];
@@ -636,7 +649,7 @@ class SalesQnaAdminPanel {
                 <!-- Display Mode -->
                 <div class="tags-display-mode ${tags.length === 0 ? 'empty' : ''}" id="tagsDisplay">
                     <div class="tags-label">
-                        🏷️ Tags
+                        <i class="fa-solid fa-tags"></i> Tags
                         <span class="tags-edit-hint">Click to edit</span>
                     </div>
                     <div class="tags-display">
@@ -647,15 +660,18 @@ class SalesQnaAdminPanel {
                 <!-- Edit Mode -->
                 <div class="tags-edit-mode" id="tagsEdit">
                     <div class="tags-input-group">
-                        <divclass="tags-label">✏️ Edit Tags</div>
+                        <divclass="tags-label">
+                            <i class="fa-solid fa-pen"></i> 
+                            Edit Tags
+                        </div>
                         <input type="text" class="tags-input" id="tagsInput" value="${tags.join(', ')}"
                                placeholder="Enter tags separated by commas (e.g. pricing, support, features)">
                             <div class="tags-actions">
                                 <button id="save-tag-edit" class="tags-btn tags-btn-save">
-                                    💾 Save
+                                    <i class="fa-solid fa-floppy-disk"></i> Save
                                 </button>
                                 <button id="cancel-tag-edit" class="tags-btn tags-btn-cancel">
-                                    ❌ Cancel
+                                    <i class="fa-solid fa-xmark"></i> Cancel
                                 </button>
                             </div>
                     </div>
@@ -688,10 +704,10 @@ class SalesQnaAdminPanel {
         div.className = 'question-item';
         div.innerHTML = `
                 <div class="question-content">
-                    <input id="question-input-${index}" type="text" class="question-input" value="${question.text ?? ''}" ${hasText ? 'disabled' : ''}>
+                    <input id="question-input-${index}" type="text" class="question-input" value="${question.text ?? ''}">
                     <div class="question-actions">
                         <button id="delete-question" data-question-id="${question.id}" data-question-index="${index}" class="btn btn-danger">     
-                            🗑️
+                            <i class="fa-solid fa-trash"></i>
                         </button>
                     </div>
                 </div>
@@ -723,7 +739,7 @@ class SalesQnaAdminPanel {
 
             if (!response.ok) {
                 if (showError) {
-                    window.notifications.show(data.message || 'Request failed', 'error');
+                    this.showStatus(data.message || 'Request failed', 'error')
                 }
                 throw new Error(data.message || 'Request failed');
             }
@@ -735,7 +751,7 @@ class SalesQnaAdminPanel {
             return data;
         } catch (error) {
             if (error.name !== 'AbortError' && showError) {
-                window.notifications.show(error.message || 'Failed to process request', 'error');
+                this.showStatus(error.message || 'Failed to process request', 'error');
             }
             throw error;
         }
@@ -752,7 +768,6 @@ class SalesQnaAdminPanel {
         const cancelBtn = document.getElementById('confirmCancel');
 
         // Set content
-        icon.textContent = options.icon || '🗑️';
         icon.className = `confirm-icon ${options.type || 'danger'}`;
         title.textContent = options.title || 'Confirm Action';
         message.textContent = options.message || 'Are you sure you want to proceed?';

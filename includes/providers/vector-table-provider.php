@@ -1,5 +1,9 @@
 <?php
 
+namespace providers;
+
+use mysqli;
+use Exception;
 use interfaces\VectorProviderInterface;
 use MHz\MysqlVector\VectorTable;
 

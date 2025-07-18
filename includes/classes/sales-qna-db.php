@@ -1,10 +1,12 @@
 <?php
 
-namespace SalesQnA\Classes;
+namespace classes;
+
 
 use providers\OpenAiProvider;
+use providers\VectorTableProvider;
 use SalesQnA;
-use VectorTableProvider;
+
 
 class SalesQnADB {
   private static $_instance = null;
@@ -115,6 +117,41 @@ class SalesQnADB {
     }
 
     return $wpdb->insert_id;
+  }
+
+  public function update_question(string $id, string $question) {
+    global $wpdb;
+
+    $embedding = $this->embedding_provider->get_embedding($question);
+
+    if (!$embedding) {
+      return 'embedding_failed';
+    }
+
+    $vectorId = $this->insert_embedding($embedding);
+
+    if (!$vectorId) {
+      return 'vector_insert_failed';
+    }
+
+    $data = ['question' => $question, 'vector_id' => $vectorId];
+
+    $result = $wpdb->update(
+      $this->questions_table,
+      $data,
+      ['id' => $id],
+      ['%s','%d'],
+      ['%d']
+    );
+    if ($result === false) {
+      return 'question_update_failed';
+    }
+
+    if ($result === 0) {
+      return 'question_not_updated';
+    }
+
+    return $result;
   }
 
   public function delete_question($id) {

@@ -14,7 +14,10 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
             ></textarea>
             <div class="question-buttons">
                 <button id="ask-question" class="qna-button primary">
-                    <span>🔍 Find Matches</span>
+                    <span>
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                         Find Matches
+                    </span>
                 </button>
                 <button id="clear-question" class="qna-button secondary">Clear</button>
             </div>
@@ -40,7 +43,9 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
 
         <!-- No Matches State -->
         <div id="noMatches" class="no-matches" style="display: none;">
-            <div class="no-matches-icon">🤔</div>
+            <div class="no-matches-icon">
+                <i class="fa-regular fa-face-meh"></i>
+            </div>
             <h3>No Matches Found</h3>
             <p>Try rephrasing the question or check for typos</p>
         </div>
