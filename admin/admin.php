@@ -7,14 +7,15 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
 
     <!-- Header -->
     <div class="sales-qna-header">
-        <h1>Q&A Admin Panel</h1>
+        <div class="header-title">
+              <!-- Settings Trigger Button -->
+          <button class="settings-trigger" id="open-settings-button" aria-label="Open Settings">
+              <i class="fa-solid fa-gear"></i>
+          </button>
+          <h1>Q&A Admin Panel</h1>
+        </div>
         <p>Manage intents, answers, and questions</p>
     </div>
-    <!-- Settings Trigger Button -->
-    <button class="settings-trigger" id="open-settings-button" aria-label="Open Settings">
-        <i class="fa-solid fa-gear"></i>
-    </button>
-
     <!-- Main Layout -->
     <div class="main-layout">
         <!-- Sidebar with Intent List -->

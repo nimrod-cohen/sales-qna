@@ -28,7 +28,7 @@ final class SalesQnA {
   public const PLUGIN_SLUG = 'sales-qna';
   private const OPENAI_API_KEY = 'openai_api_key';
   private const FONT_AWESOME_HANDLE = 'font-awesome';
-  private const FONT_AWESOME_URL = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css';
+  private const FONT_AWESOME_URL = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css';
   private $db = null;
 
   public static function get_instance() {
@@ -53,7 +53,7 @@ final class SalesQnA {
     add_action('rest_api_init', [$this, 'register_api_routes']);
 
     add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
-    add_action('wp_enqueue_scripts', [$this, 'enqueue_shortcode_assets' ]);
+    add_action('wp_enqueue_scripts', [$this, 'enqueue_shortcode_assets']);
 
     add_shortcode('sales_qna_search_page', [$this, 'render_search_page']);
 
@@ -74,7 +74,7 @@ final class SalesQnA {
     register_rest_route('sales-qna/v1', '/questions/delete/', [
       'methods' => 'POST',
       'callback' => [$this, 'delete_question'],
-      'permission_callback' => function() {
+      'permission_callback' => function () {
         return current_user_can('manage_options');
       }
     ]);
@@ -82,7 +82,7 @@ final class SalesQnA {
     register_rest_route('sales-qna/v1', '/questions/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_question'],
-      'permission_callback' => function() {
+      'permission_callback' => function () {
         return current_user_can('manage_options');
       }
     ]);
@@ -92,7 +92,7 @@ final class SalesQnA {
     register_rest_route('sales-qna/v1', '/tags/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_tags'],
-      'permission_callback' => function() {
+      'permission_callback' => function () {
         return current_user_can('manage_options');
       }
     ]);
@@ -102,13 +102,13 @@ final class SalesQnA {
     register_rest_route('sales-qna/v1', '/intents/get/', [
       'methods' => 'POST',
       'callback' => [$this, 'get_all_intents'],
-      'permission_callback' => '__return_true',
+      'permission_callback' => '__return_true'
     ]);
 
     register_rest_route('sales-qna/v1', '/intents/delete/', [
       'methods' => 'POST',
       'callback' => [$this, 'delete_intent'],
-      'permission_callback' => function() {
+      'permission_callback' => function () {
         return current_user_can('manage_options');
       }
     ]);
@@ -116,7 +116,7 @@ final class SalesQnA {
     register_rest_route('sales-qna/v1', '/intents/save/', [
       'methods' => 'POST',
       'callback' => [$this, 'save_intent'],
-      'permission_callback' => function() {
+      'permission_callback' => function () {
         return current_user_can('manage_options');
       }
     ]);
@@ -126,17 +126,17 @@ final class SalesQnA {
     register_rest_route('sales-qna/v1', '/answers/get', [
       'methods' => 'POST',
       'callback' => [$this, 'get_answers'],
-      'permission_callback' => '__return_true',
+      'permission_callback' => '__return_true'
     ]);
   }
 
   public function register_settings_routes() {
     register_rest_route('sales-qna/v1', '/settings/save', [
-      'methods'             => 'POST',
-      'callback'            => [$this, 'save_settings'],
+      'methods' => 'POST',
+      'callback' => [$this, 'save_settings'],
       'permission_callback' => function () {
         return current_user_can('manage_options');
-      },
+      }
     ]);
   }
 
@@ -164,9 +164,9 @@ final class SalesQnA {
   }
 
   public static function version() {
-    if ( ! defined( 'YOUR_PLUGIN_VERSION' ) ) {
-      $plugin_data = get_file_data( __FILE__, [ 'Version' => 'Version' ] );
-      define( 'YOUR_PLUGIN_VERSION', $plugin_data['Version'] );
+    if (!defined('YOUR_PLUGIN_VERSION')) {
+      $plugin_data = get_file_data(__FILE__, ['Version' => 'Version']);
+      define('YOUR_PLUGIN_VERSION', $plugin_data['Version']);
     }
 
     return YOUR_PLUGIN_VERSION;
@@ -207,19 +207,19 @@ final class SalesQnA {
     return rest_ensure_response($intends);
   }
 
-  public function save_intent( $request ) {
-    $input  = $request->get_json_params();
-    $name   = stripslashes( sanitize_text_field( $input['name'] ?? '' ) );
-    $answer = stripslashes( sanitize_text_field( $input['answer'] ?? '' ) );
-    $id     = $input['id'] ?? false;
+  public function save_intent($request) {
+    $input = $request->get_json_params();
+    $name = stripslashes(sanitize_text_field($input['name'] ?? ''));
+    $answer = stripslashes(sanitize_text_field($input['answer'] ?? ''));
+    $id = $input['id'] ?? false;
 
-    if ( $id ) {
-      $this->db->update_intent( $id, $name, $answer );
+    if ($id) {
+      $this->db->update_intent($id, $name, $answer);
     } else {
-      $this->db->add_intent( $name );
+      $this->db->add_intent($name);
     }
 
-    return rest_ensure_response( [ 'status' => 'success' ] );
+    return rest_ensure_response(['status' => 'success']);
   }
 
   public function delete_intent($request) {
@@ -235,32 +235,32 @@ final class SalesQnA {
     return rest_ensure_response(['status' => 'success']);
   }
 
-  public function save_question( $request ) {
-    $input    = $request->get_json_params();
-    $question = stripslashes( sanitize_text_field( $input['question'] ?? '' ) );
-    $intentId = ! empty( $input['intent_id'] ) ? $input['intent_id'] : false;
-    $id       = $input['id'] ?? false;
+  public function save_question($request) {
+    $input = $request->get_json_params();
+    $question = stripslashes(sanitize_text_field($input['question'] ?? ''));
+    $intentId = !empty($input['intent_id']) ? $input['intent_id'] : false;
+    $id = $input['id'] ?? false;
 
-    if ( $id ) {
-      $result = $this->db->update_question( $id, $question );
+    if ($id) {
+      $result = $this->db->update_question($id, $question);
     } else {
-      $result = $this->db->add_question( $question, $intentId );
+      $result = $this->db->add_question($question, $intentId);
     }
 
     if (is_string($result)) {
       switch ($result) {
-        case 'embedding_failed':
-          return new WP_Error('openai_embedding_error', 'Failed to generate embedding. Check your API key.', ['status' => 500]);
-        case 'vector_insert_failed':
-          return new WP_Error('vector_insert_error', 'Could not insert embedding vector into database.', ['status' => 500]);
-        case 'db_insert_failed':
-          return new WP_Error('db_insert_error', 'Failed to save question to database.', ['status' => 500]);
-        case 'question_update_failed':
-          return new WP_Error('question_update_error', 'Error updating question into database.', ['status' => 500]);
-        case 'question_not_updated':
-          return new WP_Error('db_insert_error', 'Question was not updated.', ['status' => 500]);
-        default:
-          return new WP_Error('unknown_error', 'An unknown error occurred.', ['status' => 500]);
+      case 'embedding_failed':
+        return new WP_Error('openai_embedding_error', 'Failed to generate embedding. Check your API key.', ['status' => 500]);
+      case 'vector_insert_failed':
+        return new WP_Error('vector_insert_error', 'Could not insert embedding vector into database.', ['status' => 500]);
+      case 'db_insert_failed':
+        return new WP_Error('db_insert_error', 'Failed to save question to database.', ['status' => 500]);
+      case 'question_update_failed':
+        return new WP_Error('question_update_error', 'Error updating question into database.', ['status' => 500]);
+      case 'question_not_updated':
+        return new WP_Error('db_insert_error', 'Question was not updated.', ['status' => 500]);
+      default:
+        return new WP_Error('unknown_error', 'An unknown error occurred.', ['status' => 500]);
       }
     }
 
@@ -317,7 +317,7 @@ final class SalesQnA {
 
   public function render_search_page() {
     ob_start();
-    include plugin_dir_path( __FILE__ ) . 'public/search.php';
+    include plugin_dir_path(__FILE__) . 'public/search.php';
 
     return ob_get_clean();
   }
@@ -330,12 +330,12 @@ final class SalesQnA {
     self::enqueue_style('sales-qna-panel-style', 'admin/sales-qna-admin-panel.css', []);
 
     wp_localize_script('sales-qna-script', 'SalesQnASettings', [
-      'apiKey'   => SalesQnA::get_option( 'openai_api_key', '' ),
+      'apiKey' => SalesQnA::get_option('openai_api_key', ''),
       'direction' => SalesQnA::get_option('text_direction', 'ltr'),
-      'nonce'     => wp_create_nonce('wp_rest'),
+      'nonce' => wp_create_nonce('wp_rest')
     ]);
 
-    wp_enqueue_style( self::FONT_AWESOME_HANDLE, self::FONT_AWESOME_URL);
+    wp_enqueue_style(self::FONT_AWESOME_HANDLE, self::FONT_AWESOME_URL);
   }
 
   public function enqueue_shortcode_assets() {
@@ -343,7 +343,7 @@ final class SalesQnA {
       self::enqueue_script('sales-qna-search', 'public/sales-qna-search.js', ['wpjsutils']);
       self::enqueue_style('sales-qna-search', 'public/sales-qna-search.css', []);
 
-      wp_enqueue_style( self::FONT_AWESOME_HANDLE, self::FONT_AWESOME_URL);
+      wp_enqueue_style(self::FONT_AWESOME_HANDLE, self::FONT_AWESOME_URL);
     }
   }
 }
