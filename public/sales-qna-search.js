@@ -25,8 +25,6 @@ class SalesQnASearch {
         this.showLoading(true);
         this.hideResults();
 
-        this.displayCustomerQuestion(question);
-
         try {
             const data = {
                 search: question
@@ -69,17 +67,12 @@ class SalesQnASearch {
         if (show) {
             loadingState.classList.add('show');
             askQuestion.disabled = true;
-            askQuestion.innerHTML = '<span>🔄 Analyzing...</span>';
+            askQuestion.innerHTML = '<span><i class="fa-solid fa-spinner"></i> Analyzing...</span>';
         } else {
             loadingState.classList.remove('show');
             askQuestion.disabled = false;
-            askQuestion.innerHTML = '<span>🔍 Find Matches</span>';
+            askQuestion.innerHTML = '<span><i class="fa-solid fa-magnifying-glass"></i> Find Matches</span>';
         }
-    }
-
-    displayCustomerQuestion = (question)=> {
-        document.getElementById('displayedQuestion').textContent = question;
-        document.getElementById('customerQuestionDisplay').classList.add('show');
     }
 
     displayMatches = (matches) => {
@@ -89,7 +82,7 @@ class SalesQnASearch {
         const noMatches = document.getElementById('noMatches');
 
         if (matches.length === 0) {
-            container.style.display = 'none';
+            container.classList.remove('show');
             noMatches.style.display = 'block';
             return;
         }
@@ -162,7 +155,6 @@ class SalesQnASearch {
 
     clearQuestion = () => {
         document.getElementById('customerQuestion').value = '';
-        document.getElementById('customerQuestionDisplay').classList.remove('show');
         this.hideResults();
     }
 

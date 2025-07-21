@@ -10,14 +10,14 @@ body {
 }
 
 .sales-qna-search-page {
-    padding: 20px;
+    padding: 0px;
     max-width: 1200px;
     margin: 0 auto;
 
     & .qna-search-container {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 20px;
+        padding: 0px;
 
         & .header {
             text-align: center;
@@ -44,7 +44,7 @@ body {
             background: white;
             border-radius: 12px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            padding: 24px;
+            padding: 16px;
             margin-bottom: 24px;
             border-left: 4px solid #3b82f6;
 
@@ -78,11 +78,11 @@ body {
 
             & .question-buttons {
                 display: flex;
-                gap: 12px;
+                gap: 6px;
 
                 & .qna-button {
                     margin-top: 16px;
-                    padding: 12px 24px;
+                    padding: 8px 16px;
                     color: white;
                     border: none;
                     border-radius: 8px;
@@ -122,8 +122,8 @@ body {
             background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
             border: 1px solid #93c5fd;
             border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 24px;
+            padding: 16px;
+            margin-bottom: 16px;
             display: none;
 
             &.show {
@@ -164,7 +164,6 @@ body {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 20px;
                 padding: 16px 0;
 
                 & .results-title {
@@ -313,7 +312,7 @@ body {
                 }
 
                 .match-content {
-                    padding: 24px;
+                    padding: 16px;
 
                     & .match-answer {
                         font-size: 1.5rem;
@@ -324,13 +323,13 @@ body {
                         padding: 20px;
                         border-radius: 8px;
                         border: 1px solid #e2e8f0;
-                        margin-bottom: 16px;
                     }
 
                     & .match-tags {
                         display: flex;
                         flex-wrap: wrap;
                         gap: 6px;
+                        margin-top: 16px;
 
                         & .tag {
                             background: #dbeafe;
@@ -351,7 +350,7 @@ body {
                         font-size: 0.8rem;
                         cursor: pointer;
                         transition: all 0.2s ease;
-                        margin-top: 12px;
+                        margin-top: 16px;
 
                         &:hover {
                             background: #059669;

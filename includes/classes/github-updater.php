@@ -14,7 +14,27 @@
  */
 
 /**/
-namespace SalesQnA;
+namespace classes;
+
+use function add_action;
+use function add_filter;
+use function dmin_url;
+use function delete_site_transient;
+use function delete_transient;
+use function get_plugin_data;
+use function get_transient;
+use function is_wp_error;
+use function plugin_basename;
+use function set_transient;
+use function unzip_file;
+use function WP_Filesystem;
+use function wp_redirect;
+use function wp_remote_get;
+use function wp_remote_retrieve_response_code;
+use function wp_tempnam;
+use function wp_update_plugins;
+use function wp_upload_dir;
+use const ABSPATH;
 
 defined('ABSPATH') || exit;
 

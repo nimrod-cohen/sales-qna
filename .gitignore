@@ -1,3 +1,4 @@
 **/yinon*.json
-/vendor
+/vendor/
+
 .idea

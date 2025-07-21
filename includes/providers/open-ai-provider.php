@@ -3,6 +3,7 @@
 namespace providers;
 
 use interfaces\EmbeddingProviderInterface;
+use SalesQnA;
 
 class OpenAiProvider implements EmbeddingProviderInterface {
 
@@ -11,7 +12,7 @@ class OpenAiProvider implements EmbeddingProviderInterface {
   private $timeout;
 
   public function __construct() {
-    $this->api_key = \SalesQnA::get_option('openai_api_key');
+    $this->api_key = SalesQnA::get_option('openai_api_key');
     $this->model = 'text-embedding-3-small';
     $this->timeout = 15;
   }

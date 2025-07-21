@@ -3,14 +3,17 @@ $plugin_version = SalesQnA::version();
 $dir = SalesQnA::get_option('text_direction', 'ltr');
 ?>
 <div class="sales-qna-container">
+    <div id="statusMessage" class="status-message"></div>
+
     <!-- Header -->
     <div class="sales-qna-header">
         <h1>Q&A Admin Panel</h1>
         <p>Manage intents, answers, and questions</p>
     </div>
-
-    <!-- Status Messages -->
-    <div id="statusMessage" class="status-message"></div>
+    <!-- Settings Trigger Button -->
+    <button class="settings-trigger" id="open-settings-button" aria-label="Open Settings">
+        <i class="fa-solid fa-gear"></i>
+    </button>
 
     <!-- Main Layout -->
     <div class="main-layout">
@@ -18,13 +21,17 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
         <div class="sidebar">
             <div class="sales-qna-section">
                 <h2 class="title">
-                    <span class="icon">🎯</span>
+                    <span class="icon">
+                        <i class="fa-solid fa-comment"></i>
+                    </span>
                     All Intents
                 </h2>
 
                 <!-- Search Box -->
                 <div class="search-box">
-                    <span class="search-icon">🔍</span>
+                    <span class="search-icon">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </span>
                     <input type="text" class="search-input" id="intentSearch" placeholder="Search intents...">
                 </div>
 
@@ -35,7 +42,7 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
 
                 <!-- Add Intent Button -->
                 <button id="create-new-intent" class="add-intent-btn">
-                    ➕ Add New Intent
+                    <i class="fa-solid fa-plus"></i> Add New Intent
                 </button>
 
                 <!-- New Intent Form -->
@@ -57,7 +64,9 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
             <div class="sales-qna-section">
                 <!-- Default Empty State -->
                 <div id="emptyState" class="content-empty">
-                    <div class="empty-state-icon">🎯</div>
+                    <div class="empty-state-icon">
+                        <i class="fa-solid fa-comment"></i>
+                    </div>
                     <h3>Select an Intent</h3>
                     <p>Choose an intent from the list to manage its answer and questions</p>
                 </div>
@@ -69,10 +78,10 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
                         <h2 class="intent-title" id="intentTitle">Intent Name</h2>
                         <div class="intent-actions">
                             <button id="edit-intent" class="btn btn-warning btn-small">
-                                ✏️ Edit Name
+                                <i class="fa-solid fa-pen"></i> Edit
                             </button>
                             <button id="delete-intent" class="btn btn-danger btn-small">
-                                🗑️ Delete
+                                <i class="fa-solid fa-trash"></i> Delete
                             </button>
                         </div>
                     </div>
@@ -97,7 +106,7 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
 
                     <div class="form-actions">
                         <button id="save-answer" class="btn btn-success">
-                            💾 Save Answer
+                            <i class="fa-solid fa-floppy-disk"></i> Save Answer
                         </button>
                     </div>
 
@@ -111,7 +120,9 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
                     <!-- Questions Section -->
                     <div class="sales-qna-questions-section">
                         <h3 class="section-title">
-                            <span class="section-icon">❓</span>
+                            <span class="section-icon">
+                                <i class="fa-solid fa-question"></i>
+                            </span>
                             Questions
                             <span style="font-size: 0.8rem; color: #64748b; margin-left: auto;" id="questionCounter"></span>
                         </h3>
@@ -121,7 +132,7 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
                         </div>
 
                         <div id="add-new-question" class="add-question">
-                            <div>➕ Add New Question</div>
+                            <div><i class="fa-solid fa-plus"></i> Add New Question</div>
                         </div>
                     </div>
                 </div>
@@ -129,12 +140,6 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
 
         </div>
     </div>
-
-    <!-- Settings Trigger Button -->
-    <button class="settings-trigger" id="open-settings-button" aria-label="Open Settings">
-        ⚙️
-    </button>
-
 </div>
 
 <!-- Custom Confirm Dialog -->
@@ -142,7 +147,7 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
     <div class="confirm-dialog">
         <div class="confirm-header">
             <div id="confirmIcon" class="confirm-icon">
-                🗑️
+                <i class="fa-solid fa-trash"></i>
             </div>
             <h3 id="confirmTitle" class="confirm-title">Confirm Action</h3>
             <p id="confirmMessage" class="confirm-message">Are you sure you want to proceed?</p>
@@ -155,6 +160,8 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
             <button id="confirmAction" class="confirm-btn confirm-btn-danger">Delete</button>
         </div>
     </div>
+
+
 </div>
 
 <!-- Settings Overlay -->
@@ -164,7 +171,7 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
 <div class="settings-panel" id="settingsPanel">
     <div class="settings-header">
         <h2 class="settings-title">
-            <span>⚙️</span>
+            <i class="fa-solid fa-gear"></i>
             Settings
         </h2>
         <button class="close-btn" id="close-settings-button" aria-label="Close Settings">
@@ -206,12 +213,22 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
             </div>
         </div>
 
+        <!-- Shortcode Message -->
+        <div class="setting-group">
+            <label class="setting-label">Display Search Panel</label>
+            <p class="setting-description">
+                To add the Q&A search feature to any page, simply use this shortcode:
+                <code>[sales_qna_search_page]</code>
+            </p>
+        </div>
+
         <!-- Save Button -->
         <button class="btn btn-primary" id="save-settings-button">
             Save Settings
         </button>
-
-        <!-- Status Message -->
-        <div id="statusMessage" class="status-message"></div>
     </div>
 </div>
+
+<!-- Status Messages -->
+
+

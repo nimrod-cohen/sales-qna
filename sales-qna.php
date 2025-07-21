@@ -14,7 +14,8 @@
  * Text Domain:   sales-qna
  */
 
-use SalesQnA\Classes\SalesQnADB;
+use classes\GitHubPluginUpdater;
+use classes\SalesQnADB;
 
 if (!defined('ABSPATH')) {
   exit; // Exit if accessed directly
@@ -24,6 +25,8 @@ final class SalesQnA {
   private static $instance = null;
   public const PLUGIN_SLUG = 'sales-qna';
   private const OPENAI_API_KEY = 'openai_api_key';
+  private const FONT_AWESOME_HANDLE = 'font-awesome';
+  private const FONT_AWESOME_URL = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css';
   private $db = null;
 
   public static function get_instance() {
@@ -50,7 +53,7 @@ final class SalesQnA {
     add_shortcode('sales_qna_search_page', [$this, 'render_search_page']);
 
     add_action('admin_init', function () {
-      $updater = new \SalesQnA\GitHubPluginUpdater(__FILE__);
+      $updater = new GitHubPluginUpdater(__FILE__);
     });
   }
 
@@ -92,7 +95,7 @@ final class SalesQnA {
 
   private function register_intent_routes() {
     register_rest_route('sales-qna/v1', '/intents/get/', [
-      'methods' => 'GET',
+      'methods' => 'POST',
       'callback' => [$this, 'get_all_intents'],
       'permission_callback' => '__return_true',
     ]);
@@ -227,13 +230,36 @@ final class SalesQnA {
     return rest_ensure_response(['status' => 'success']);
   }
 
-  public function save_question($request) {
-    $input = $request->get_json_params();
-    $question = stripslashes(sanitize_text_field($input['question'] ?? ''));
-    $intentId = !empty($input['intent_id']) ? $input['intent_id'] : false;
+  public function save_question( $request ) {
+    $input    = $request->get_json_params();
+    $question = stripslashes( sanitize_text_field( $input['question'] ?? '' ) );
+    $intentId = ! empty( $input['intent_id'] ) ? $input['intent_id'] : false;
+    $id       = $input['id'] ?? false;
 
-    $id = $this->db->add_question($question,  $intentId);
-    return rest_ensure_response(['status' => 'success', 'id' => $id]);
+    if ( $id ) {
+      $result = $this->db->update_question( $id, $question );
+    } else {
+      $result = $this->db->add_question( $question, $intentId );
+    }
+
+    if (is_string($result)) {
+      switch ($result) {
+        case 'embedding_failed':
+          return new WP_Error('openai_embedding_error', 'Failed to generate embedding. Check your API key.', ['status' => 500]);
+        case 'vector_insert_failed':
+          return new WP_Error('vector_insert_error', 'Could not insert embedding vector into database.', ['status' => 500]);
+        case 'db_insert_failed':
+          return new WP_Error('db_insert_error', 'Failed to save question to database.', ['status' => 500]);
+        case 'question_update_failed':
+          return new WP_Error('question_update_error', 'Error updating question into database.', ['status' => 500]);
+        case 'question_not_updated':
+          return new WP_Error('db_insert_error', 'Question was not updated.', ['status' => 500]);
+        default:
+          return new WP_Error('unknown_error', 'An unknown error occurred.', ['status' => 500]);
+      }
+    }
+
+    return rest_ensure_response(['status' => 'success', 'id' => $result]);
   }
 
   public function delete_question($request) {
@@ -270,7 +296,7 @@ final class SalesQnA {
     $params = $request->get_json_params();
 
     if (!empty($params['apiKey'])) {
-      self::update_option($this->OPENAI_API_KEY, sanitize_text_field($params['apiKey']));
+      self::update_option(SELF::OPENAI_API_KEY, sanitize_text_field($params['apiKey']));
     }
 
     if (!empty($params['direction']) && in_array($params['direction'], ['ltr', 'rtl'])) {
@@ -295,7 +321,8 @@ final class SalesQnA {
     if ($hook !== 'toplevel_page_sales-qna') {
       return;
     }
-    self::enqueue_script('sales-qna-script', 'assets/sales-qna-admin-panel.js', ['wpjsutils']);
+    self::enqueue_script('sales-qna-script', 'admin/sales-qna-admin-panel.js', ['wpjsutils']);
+    self::enqueue_style('sales-qna-panel-style', 'admin/sales-qna-admin-panel.css', []);
 
     wp_localize_script('sales-qna-script', 'SalesQnASettings', [
       'apiKey'   => SalesQnA::get_option( 'openai_api_key', '' ),
@@ -303,28 +330,38 @@ final class SalesQnA {
       'nonce'     => wp_create_nonce('wp_rest'),
     ]);
 
-    self::enqueue_style('sales-qna-panel-style', 'assets/sales-qna-admin-panel.css', []);
+    wp_enqueue_style( self::FONT_AWESOME_HANDLE, self::FONT_AWESOME_URL);
   }
 
   public function enqueue_shortcode_assets() {
     if (is_singular() && has_shortcode(get_post()->post_content, 'sales_qna_search_page')) {
-      self::enqueue_script('sales-qna-search', 'assets/sales-qna-search.js', ['wpjsutils']);
-      self::enqueue_style('sales-qna-search', 'assets/sales-qna-search.css', []);
+      self::enqueue_script('sales-qna-search', 'public/sales-qna-search.js', ['wpjsutils']);
+      self::enqueue_style('sales-qna-search', 'public/sales-qna-search.css', []);
+
+      wp_enqueue_style( self::FONT_AWESOME_HANDLE, self::FONT_AWESOME_URL);
     }
   }
 }
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-$subdirs = ['interfaces', 'providers', 'classes'];
+function sales_qna_load_includes(array $subdirs) {
+  $base = plugin_dir_path(__FILE__) . 'includes/';
 
-foreach($subdirs as $subdir) {
-  $directory = plugin_dir_path(__FILE__) . $subdir;
-  $files = glob($directory . '/*.php');
-  foreach ($files as $file) {
-    require_once $file;
+  foreach ($subdirs as $subdir) {
+    $directory = $base . $subdir;
+
+    if (!is_dir($directory)) {
+      continue;
+    }
+
+    foreach (glob("{$directory}/*.php") as $file) {
+      require_once $file;
+    }
   }
 }
+
+sales_qna_load_includes(['interfaces', 'providers', 'classes']);
 
 // Initialize the plugin
 SalesQnA::get_instance();
