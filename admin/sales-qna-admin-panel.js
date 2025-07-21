@@ -86,7 +86,7 @@ class SalesQnaAdminPanel {
 
     reloadIntends = async () => {
         const res = await fetch('/wp-json/sales-qna/v1/intents/get', {
-            method: 'GET'
+            method: 'POST'
         });
         if (!res.ok) {
             const error = await res.json();
@@ -555,7 +555,6 @@ class SalesQnaAdminPanel {
     }
 
     enterTagEditMode = () => {
-
         const displayMode = document.getElementById(`tagsDisplay`);
         const editMode = document.getElementById(`tagsEdit`);
         const input = document.getElementById(`tagsInput`);
@@ -588,7 +587,7 @@ class SalesQnaAdminPanel {
         if (tags.length === 0) return;
 
         const intentsData = this.state.get('intents');
-        console.log(intentsData[1]);
+
         const intent = intentsData[this.currentIntentId];
 
 
@@ -851,18 +850,17 @@ class SalesQnaAdminPanel {
     }
 
     loadSettings = () => {
-            const direction = SalesQnASettings.direction;
-            const apiKey = SalesQnASettings.apiKey;
+        const direction = SalesQnASettings.direction;
+        const apiKey = SalesQnASettings.apiKey;
 
-            console.log(direction);
-            if (direction === 'rtl') {
-                document.querySelector('.sales-qna-container')?.classList.add('rtl');
-                document.getElementById('toggle-rtl-switch').classList.add('active');
-            }
+        if (direction === 'rtl') {
+            document.querySelector('.sales-qna-container')?.classList.add('rtl');
+            document.getElementById('toggle-rtl-switch').classList.add('active');
+        }
 
-            if (apiKey) {
-                document.getElementById('apiKey').value = apiKey;
-            }
+        if (apiKey) {
+            document.getElementById('apiKey').value = apiKey;
+        }
     }
 
     saveSettings = () => {

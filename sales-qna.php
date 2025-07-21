@@ -95,7 +95,7 @@ final class SalesQnA {
 
   private function register_intent_routes() {
     register_rest_route('sales-qna/v1', '/intents/get/', [
-      'methods' => 'GET',
+      'methods' => 'POST',
       'callback' => [$this, 'get_all_intents'],
       'permission_callback' => '__return_true',
     ]);
@@ -322,14 +322,13 @@ final class SalesQnA {
       return;
     }
     self::enqueue_script('sales-qna-script', 'admin/sales-qna-admin-panel.js', ['wpjsutils']);
+    self::enqueue_style('sales-qna-panel-style', 'admin/sales-qna-admin-panel.css', []);
 
     wp_localize_script('sales-qna-script', 'SalesQnASettings', [
       'apiKey'   => SalesQnA::get_option( 'openai_api_key', '' ),
       'direction' => SalesQnA::get_option('text_direction', 'ltr'),
       'nonce'     => wp_create_nonce('wp_rest'),
     ]);
-
-    self::enqueue_style('sales-qna-panel-style', 'admin/sales-qna-admin-panel.css', []);
 
     wp_enqueue_style( self::FONT_AWESOME_HANDLE, self::FONT_AWESOME_URL);
   }
