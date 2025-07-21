@@ -16,6 +16,8 @@
 
 use classes\GitHubPluginUpdater;
 use classes\SalesQnADB;
+use providers\OpenAiProvider;
+use providers\VectorTableProvider;
 
 if (!defined('ABSPATH')) {
   exit; // Exit if accessed directly
@@ -37,7 +39,10 @@ final class SalesQnA {
   }
 
   private function __construct() {
-    $this->db = SalesQnADB::get_instance();
+    $this->db = SalesQnADB::get_instance(
+      new OpenAiProvider(),
+      new VectorTableProvider()
+    );
 
     register_activation_hook(__FILE__, [$this->db, 'install']);
     register_uninstall_hook(__FILE__, [SalesQnADB::class, 'uninstall']);

@@ -2,11 +2,7 @@
 
 namespace classes;
 
-
-use providers\OpenAiProvider;
-use providers\VectorTableProvider;
 use SalesQnA;
-
 
 class SalesQnADB {
   private static $_instance = null;
@@ -15,18 +11,18 @@ class SalesQnADB {
   private $embedding_provider;
   private $vector_provider;
 
-  private function __construct() {
+  private function __construct($embedding_provider, $vector_provider) {
     global $wpdb;
     $this->questions_table = $wpdb->prefix . "sales_qna_questions";
     $this->intents_table = $wpdb->prefix . "sales_qna_intents";
 
-    $this->embedding_provider = new OpenAiProvider();
-    $this->vector_provider = new VectorTableProvider();
+    $this->embedding_provider = $embedding_provider;
+    $this->vector_provider = $vector_provider;
   }
 
-  public static function get_instance() {
-    if (is_null(self::$_instance)) {
-      self::$_instance = new SalesQnADB();
+  public static function get_instance($embedding_provider, $vector_provider) {
+    if (self::$_instance === null) {
+      self::$_instance = new self($embedding_provider, $vector_provider);
     }
 
     return self::$_instance;
@@ -336,12 +332,6 @@ class SalesQnADB {
             'similarity' => $vector['similarity'],
             'tags'       => $tags,
           ];
-
-          // Merge tags (unique)
-          $grouped[$intent_id]['tags'] = array_values(array_unique(array_merge(
-            $grouped[$intent_id]['tags'],
-            $tags
-          )));
         }
       }
     }
