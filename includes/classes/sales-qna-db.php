@@ -33,27 +33,48 @@ class SalesQnADB {
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
     $charset_collate = $wpdb->get_charset_collate();
+    $intents_table   = $this->intents_table;
+    $questions_table = $this->questions_table;
 
-    $sql = " CREATE TABLE $this->intents_table (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            answer TEXT NOT NULL,
-            tags TEXT NOT NULL,
-            slug TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )$charset_collate;
+    $sql_intents = "CREATE TABLE $intents_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        answer TEXT NOT NULL,
+        tags TEXT NOT NULL,
+        slug TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) $charset_collate;";
 
-        CREATE TABLE $this->questions_table (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            question TEXT NOT NULL,
-            intent_id INT NOT NULL,
-            vector_id INT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (intent_id) REFERENCES {$this->intents_table}(id) ON DELETE CASCADE
-        )$charset_collate;
-    ";
+    $sql_questions = "CREATE TABLE $questions_table (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        question TEXT NOT NULL,
+        intent_id INT NOT NULL,
+        vector_id INT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) $charset_collate;";
 
-    dbDelta($sql);
+    dbDelta($sql_intents);
+    dbDelta($sql_questions);
+
+    $constraint_exists = $wpdb->get_var($wpdb->prepare("
+        SELECT CONSTRAINT_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_NAME = %s
+          AND COLUMN_NAME = 'intent_id'
+          AND CONSTRAINT_NAME = 'fk_intent_id'
+          AND CONSTRAINT_SCHEMA = DATABASE()
+    ", $questions_table));
+
+    if (!$constraint_exists) {
+      $wpdb->query("
+            ALTER TABLE $questions_table
+            ADD CONSTRAINT fk_intent_id
+            FOREIGN KEY (intent_id)
+            REFERENCES $intents_table(id)
+            ON DELETE CASCADE
+        ");
+    }
+
 
     $this->vector_provider->initialize();
 
