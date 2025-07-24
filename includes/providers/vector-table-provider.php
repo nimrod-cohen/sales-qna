@@ -48,6 +48,10 @@ class VectorTableProvider implements VectorProviderInterface {
     return $this->vector->upsert( $this->format_array( $vector_string ) );
   }
 
+  public function get_vector_table(): string {
+    return $this->table_name;
+  }
+
   private function format_array( string $vector_string ) {
     $vector_string = trim( $vector_string );
 

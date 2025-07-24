@@ -26,4 +26,11 @@ interface VectorProviderInterface {
    * @return array The ID of a newly inserted item
    */
   public function insert(string $vector_string): int;
+
+  /**
+   * Get the name of the table where vectors are saved
+   *
+   * @return string
+   */
+  public function get_vector_table(): string;
 }

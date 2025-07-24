@@ -86,12 +86,24 @@ class SalesQnADB {
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
     $charset_collate = $wpdb->get_charset_collate();
+    $questions_table = $this->questions_table;
 
-    // if (version_compare($old_version, '1.0.1', '<')) {
-    //  db works here
+    if (version_compare($old_version, '1.0.5', '<')) {
+      $constraint = $wpdb->get_var($wpdb->prepare("
+            SELECT CONSTRAINT_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_NAME = %s
+              AND COLUMN_NAME = 'intent_id'
+              AND CONSTRAINT_NAME = 'fk_intent_id'
+              AND CONSTRAINT_SCHEMA = DATABASE()
+        ", $questions_table));
 
-    //   SalesQnA::update_option('plugin_version', '1.0.1');
-    // }
+      if ($constraint) {
+        $wpdb->query("ALTER TABLE {$questions_table} DROP FOREIGN KEY fk_intent_id");
+      }
+
+      SalesQnA::update_option('plugin_version', '1.0.5');
+    }
   }
 
   public static function uninstall() {
@@ -173,7 +185,21 @@ class SalesQnADB {
 
   public function delete_question($id) {
     global $wpdb;
+
+    $vector_id = $wpdb->get_var(
+      $wpdb->prepare(
+        "SELECT vector_id FROM {$this->questions_table} WHERE id = %d",
+        $id
+      )
+    );
+
     $wpdb->delete($this->questions_table, ['id' => $id]);
+
+    if ($vector_id) {
+      $vector_table = $this->vector_provider->get_vector_table() . '_vectors';
+      $wpdb->delete($vector_table, ['id' => $vector_id]);
+    }
+
     return true;
   }
 
@@ -232,7 +258,31 @@ class SalesQnADB {
 
   public function delete_intent($id) {
     global $wpdb;
+
+    $questions_table = $this->questions_table;
+    $vector_table = $this->vector_provider->get_vector_table() . '_vectors';
+
+    $vector_ids = $wpdb->get_col(
+      $wpdb->prepare(
+        "SELECT vector_id FROM {$questions_table} WHERE intent_id = %d",
+        $id
+      )
+    );
+
+    $wpdb->delete($questions_table, ['intent_id' => $id]);
+
+    if (!empty($vector_ids)) {
+      $in_placeholders = implode(',', array_fill(0, count($vector_ids), '%d'));
+      $wpdb->query(
+        $wpdb->prepare(
+          "DELETE FROM {$vector_table} WHERE id IN ($in_placeholders)",
+          ...$vector_ids
+        )
+      );
+    }
+
     $wpdb->delete($this->intents_table, ['id' => $id]);
+
     return true;
   }
 
@@ -361,5 +411,86 @@ class SalesQnADB {
     usort($results, fn($a, $b) => $b['similarity'] <=> $a['similarity']);
 
     return $results;
+  }
+
+  public function export() {
+    global $wpdb;
+
+    $intents = $wpdb->get_results("SELECT * FROM {$this->intents_table}", ARRAY_A);
+
+    foreach ($intents as &$intent) {
+      $intent_id = $intent['id'];
+
+      $questions = $wpdb->get_results(
+        $wpdb->prepare("SELECT * FROM {$this->questions_table} WHERE intent_id = %d", $intent_id),
+        ARRAY_A
+      );
+
+      $vector_table = $this->vector_provider->get_vector_table() . '_vectors';
+
+      foreach ($questions as &$question) {
+        $vector_id = $question['vector_id'];
+
+        $vectors = $wpdb->get_results(
+          $wpdb->prepare("SELECT * FROM {$vector_table} WHERE id = %d", $vector_id),
+          ARRAY_A
+        );
+
+        foreach ($vectors as &$vector) {
+          if (isset($vector['binary_code'])) {
+            $vector['binary_code'] = base64_encode($vector['binary_code']);
+          }
+        }
+
+        $question['vectors'] = $vectors;
+      }
+
+      $intent['questions'] = $questions;
+    }
+
+    return $intents;
+  }
+
+  public function import($data)
+  {
+    global $wpdb;
+
+    $intents_table = $this->intents_table;
+    $questions_table = $this->questions_table;
+    $vectors_table = $this->vector_provider->get_vector_table() . '_vectors';
+
+    foreach ($data['intents'] as $intent) {
+      // Remove old ID to let DB auto-increment
+      unset($intent['id']);
+      $questions = $intent['questions'] ?? [];
+      unset($intent['questions']);
+
+      $wpdb->insert($intents_table, $intent);
+      $new_intent_id = $wpdb->insert_id;
+
+      foreach ($questions as $question) {
+        unset($question['id']);
+        $vectors = $question['vectors'] ?? [];
+        unset($question['vectors']);
+
+        $question['intent_id'] = $new_intent_id;
+
+        $vector_ids = [];
+        foreach ($vectors as $vector) {
+          unset($vector['id']);
+
+          if (isset($vector['binary_code']) && base64_decode($vector['binary_code'], true) !== false) {
+            $vector['binary_code'] = base64_decode($vector['binary_code']);
+          }
+
+          $wpdb->insert($vectors_table, $vector);
+          $vector_ids[] = $wpdb->insert_id;
+        }
+
+        $question['vector_id'] = $vector_ids[0] ?? null;
+
+        $wpdb->insert($questions_table, $question);
+      }
+    }
   }
 }

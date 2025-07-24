@@ -24,6 +24,12 @@ class SalesQnaAdminPanel {
         JSUtils.addGlobalEventListener(document, '#toggle-rtl-label', 'click', this.toggleRTL);
         JSUtils.addGlobalEventListener(document, '#toggle-rtl-switch', 'click', this.toggleRTL);
 
+        JSUtils.addGlobalEventListener(document, '#sales-qna-export', 'click', this.handleExport);
+        JSUtils.addGlobalEventListener(document, '#sales-qna-import', 'click', function(e) {
+            document.getElementById('sales-qna-import-form').click();
+        });
+        JSUtils.addGlobalEventListener(document, '#sales-qna-import-form', 'change', this.handleImport);
+
         JSUtils.addGlobalEventListener(document, '#create-new-intent', 'click', this.createNewIntent);
         JSUtils.addGlobalEventListener(document, '#save-new-intent', 'click', this.saveNewIntent);
         JSUtils.addGlobalEventListener(document, '#cancel-new-intent', 'click', this.cancelNewIntent);
@@ -934,4 +940,96 @@ class SalesQnaAdminPanel {
         `;
         }
     };
+
+    handleImport = async (e) => {
+        const importButton = document.getElementById('sales-qna-import');
+
+        importButton.textContent = 'Importing...';
+        importButton.disabled = true;
+
+        const file = e.target.files[0];
+
+        if (!file || !file.name.endsWith('.zip')) {
+            alert('Please select a valid .zip file');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/wp-json/sales-qna/v1/settings/import', {
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': SalesQnASettings.nonce
+                },
+                body: formData
+            });
+
+            const result = await res.json();
+            if (res.ok) {
+                this.showStatus('Import Successful');
+
+                importButton.textContent = 'Imported!';
+
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    importButton.textContent = 'Import Q&A';
+                    importButton.disabled = false;
+                    this.reloadIntends();
+                }, 2000);
+            } else {
+                this.showStatus('Import failed: ' + (result.error || 'Unknown error'), 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            this.showStatus('Import failed due to network or server error.', 'error');
+        }
+    }
+
+    handleExport = async () => {
+        try {
+            const exportButton = document.getElementById('sales-qna-export');
+
+            exportButton.textContent = 'Exporting...';
+            exportButton.disabled = true;
+
+            const response = await fetch('/wp-json/sales-qna/v1/settings/export', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': SalesQnASettings.nonce
+                },
+            });
+
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const filename = response.headers.get('Content-Disposition')?.match(/filename="(.+?)"/)?.[1]
+                || `sales_qna_export_${new Date().toISOString().split('T')[0]}.zip`;
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }, 100);
+
+            this.showStatus('Export Successful');
+
+            exportButton.textContent = 'Exported!';
+
+            // Reset after 2 seconds
+            setTimeout(() => {
+                exportButton.textContent = 'Export Q&A';
+                exportButton.disabled = false;
+            }, 2000);
+        } catch (error) {
+            console.error('Export failed:', error);
+            this.showStatus('Export failed: ' + error.message, error);
+        }
+    }
 }

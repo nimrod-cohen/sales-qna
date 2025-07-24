@@ -181,6 +181,21 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
     </div>
 
     <div class="settings-content">
+        <!-- Export/Import Support -->
+        <div class="setting-group">
+            <label class="setting-label">Export & Import Q&A Intents</label>
+            <p class="setting-description">
+                Manage your question-and-answer knowledge base by exporting existing intents or importing new ones.
+                This allows you to:<br><br>
+                • Backup your current Q&A pairs<br>
+                • Migrate intents between installations<br>
+                • Bulk import new questions and answers<br><br>
+            </p>
+            <button id="sales-qna-export" class="btn btn-secondary">Export Q&A</button>
+            <button id="sales-qna-import" class="btn btn-primary">Import Q&A</button>
+            <input type="file" id="sales-qna-import-form" accept=".zip" style="display: none;" />
+        </div>
+
         <!-- RTL Language Support -->
         <div class="setting-group">
             <label class="setting-label">Language Direction</label>

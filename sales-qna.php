@@ -6,7 +6,7 @@
  * Plugin Name:   Sales Q&A Knowledge Base
  * Plugin URI:    https://github.com/nimrod-cohen/sales-qna
  * Description:   Manage a Hebrew Q&A knowledge base for your sales team.
- * Version:       1.0.0
+ * Version:       1.0.5
  * Author:        nimrod-cohen
  * Author URI:    https://github.com/nimrod-cohen/sales-qna
  * License:       GPL-2.0+
@@ -134,6 +134,22 @@ final class SalesQnA {
     register_rest_route('sales-qna/v1', '/settings/save', [
       'methods' => 'POST',
       'callback' => [$this, 'save_settings'],
+      'permission_callback' => function () {
+        return current_user_can('manage_options');
+      }
+    ]);
+
+    register_rest_route('sales-qna/v1', '/settings/export', [
+      'methods' => 'GET',
+      'callback' => [$this, 'sales_qna_export'],
+      'permission_callback' => function () {
+        return current_user_can('manage_options');
+      }
+    ]);
+
+    register_rest_route('sales-qna/v1', '/settings/import', [
+      'methods' => 'POST',
+      'callback' => [$this, 'sales_qna_import'],
       'permission_callback' => function () {
         return current_user_can('manage_options');
       }
@@ -345,6 +361,73 @@ final class SalesQnA {
 
       wp_enqueue_style(self::FONT_AWESOME_HANDLE, self::FONT_AWESOME_URL);
     }
+  }
+
+  public function sales_qna_export()
+  {
+    $intents = $this->db->export();
+
+    $jsonData = json_encode(['intents' => $intents], JSON_PRETTY_PRINT);
+
+    $zipFile = tempnam(sys_get_temp_dir(), 'sales_qna_export_') . '.zip';
+    $zip = new ZipArchive();
+
+    if ($zip->open($zipFile, ZipArchive::CREATE) === true) {
+      $zip->addFromString('export.json', $jsonData);
+      $zip->close();
+
+      header('Content-Type: application/zip');
+      header('Content-Disposition: attachment; filename="sales_qna_export.zip"');
+      header('Content-Length: ' . filesize($zipFile));
+
+      readfile($zipFile);
+      unlink($zipFile);
+      exit;
+    } else {
+      return new WP_Error('zip_failed', 'Failed to create zip file', ['status' => 500]);
+    }
+  }
+
+  public function sales_qna_import()
+  {
+    if (empty($_FILES['file'])) {
+      return new WP_REST_Response(['error' => 'No file uploaded.'], 400);
+    }
+
+    $uploaded_file = $_FILES['file'];
+    $tmp_path = $uploaded_file['tmp_name'];
+
+    $zip = new ZipArchive();
+    $extract_to = wp_upload_dir()['basedir'] . '/sales-qna-import-' . time();
+    mkdir($extract_to);
+
+    if ($zip->open($tmp_path) === TRUE) {
+      $zip->extractTo($extract_to);
+      $zip->close();
+    } else {
+      return new WP_REST_Response(['error' => 'Failed to extract zip file.'], 500);
+    }
+
+    $json_files = glob($extract_to . '/*.json');
+    if (empty($json_files)) {
+      return new WP_REST_Response(['error' => 'No JSON file found in archive.'], 400);
+    }
+
+    $json_file = $json_files[0];
+    $json = file_get_contents($json_file);
+    $data = json_decode($json, true);
+
+    if (!$data || !isset($data['intents'])) {
+      return new WP_REST_Response(['error' => 'Invalid JSON format.'], 400);
+    }
+
+    $this->db->import($data);
+
+    // Cleanup
+    array_map('unlink', glob("$extract_to/*.*"));
+    rmdir($extract_to);
+
+    return new WP_REST_Response(['success' => true, 'message' => 'Data imported.']);
   }
 }
 
