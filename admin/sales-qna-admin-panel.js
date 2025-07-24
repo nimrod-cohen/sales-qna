@@ -972,10 +972,10 @@ class SalesQnaAdminPanel {
 
                 importButton.textContent = 'Imported!';
 
-                // Reset after 2 seconds
                 setTimeout(() => {
                     importButton.textContent = 'Import Q&A';
                     importButton.disabled = false;
+                    e.target.value = '';
                     this.reloadIntends();
                 }, 2000);
             } else {
