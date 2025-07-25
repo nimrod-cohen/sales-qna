@@ -108,6 +108,35 @@ body {
           transform: translateY(-50%);
           color: #6b7280;
           font-size: 1rem;
+
+          i {
+            transition: opacity 0.2s ease;
+          }
+
+          &::after {
+            content: '';
+            display: none;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #ccc;
+            border-top-color: #333;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            position: absolute;
+            top: 10%;
+            left: -15%;
+          }
+        }
+
+        &.loading {
+          .search-icon {
+            i {
+              opacity: 0;
+            }
+            &::after {
+              display: block;
+            }
+          }
         }
 
         .search-input {
@@ -590,6 +619,8 @@ body {
         display: none;
       }
     }
+
+
   }
 }
 
@@ -773,6 +804,12 @@ body {
 
 .sales-qna-container .main-layout > *:nth-child(3) {
   grid-column: 1 / -1;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes slideDown {
@@ -977,6 +1014,11 @@ body {
       line-height: 1.4;
     }
   }
+
+  .settings-footer {
+    display: flex;
+    justify-content: space-between;
+  }
 }
 
 /* Overlay */
@@ -1149,3 +1191,4 @@ body {
     border: 1px solid #fecaca;
   }
 }
+

@@ -229,6 +229,24 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
             </div>
         </div>
 
+        <!-- Admin Threshold Support -->
+        <div class="setting-group">
+            <label class="setting-label">Admin Threshold</label>
+            <p class="setting-description">
+                Choose the minimum similarity level required to filter intents in the intent search admin panel.
+                (Admin panel may need reloading)
+            </p>
+            <div class="input-container">
+                <input
+                        type="text"
+                        id="adminThreshold"
+                        class="form-input"
+                        placeholder="Similarity between 0.0 and 1.0"
+                        autocomplete="off"
+                >
+            </div>
+        </div>
+
         <!-- Shortcode Message -->
         <div class="setting-group">
             <label class="setting-label">Display Search Panel</label>
@@ -239,9 +257,14 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
         </div>
 
         <!-- Save Button -->
-        <button class="btn btn-primary" id="save-settings-button">
-            Save Settings
-        </button>
+        <!-- Settings Version -->
+        <div class="setting-group settings-footer">
+            <button class="btn btn-primary" id="save-settings-button">
+                Save Settings
+            </button>
+
+            <p class="setting-description">Plugin Version: <?php echo esc_attr($plugin_version); ?></p>
+        </div>
     </div>
 </div>
 

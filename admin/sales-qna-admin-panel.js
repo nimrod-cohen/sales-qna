@@ -109,21 +109,35 @@ class SalesQnaAdminPanel {
         this.searchedString = '';
 
         let intentsData = this.state.get('intents');
+        let filteredIntents;
 
-        const lowerFilter = filter.toLowerCase().trim();
-        const hasFilter = lowerFilter.length > 0;
+        if (Array.isArray(filter)) {
+            filteredIntents = filter
+                .map(filterId => {
+                    let foundEntry = Object.entries(intentsData).find(([id, intent]) => intent.id === filterId.id);
+                    if (!foundEntry) return null;
 
-        const filteredIntents = Object.entries(intentsData).filter(([id, intent]) => {
-            if (!hasFilter) return true; // Show all if no filter
+                    foundEntry.push(filterId.similarity);
+                    return foundEntry
+                })
+                .filter(Boolean);
+        } else {
+            const lowerFilter = filter.toLowerCase().trim();
+            const hasFilter = lowerFilter.length > 0;
 
-            const nameMatches = intent.name.toLowerCase().includes(lowerFilter);
-            const questionsMatch = intent.questions?.some(question =>
-                question.text?.toLowerCase().includes(lowerFilter)
-            );
+            filteredIntents = Object.entries(intentsData).filter(([id, intent]) => {
+                if (!hasFilter) return true; // Show all if no filter
 
-            this.searchedString = lowerFilter;
-            return nameMatches || questionsMatch;
-        });
+                const nameMatches = intent.name.toLowerCase().includes(lowerFilter);
+                const questionsMatch = intent.questions?.some(question =>
+                    question.text?.toLowerCase().includes(lowerFilter)
+                );
+
+                this.searchedString = lowerFilter;
+                return nameMatches || questionsMatch;
+            });
+
+        }
 
         if (filteredIntents.length === 0) {
             intentList.innerHTML = `
@@ -132,23 +146,36 @@ class SalesQnaAdminPanel {
                             <i class="fa-solid fa-magnifying-glass"></i>
                         </div>
                         <p>No intents found</p>
+                         <p>If you're not finding what you need, try again by pressing <kbd>Enter</kbd> to deep search for embedded intents.</p>
                     </div>
                 `;
             return;
         }
 
-        filteredIntents.forEach(([id, intent]) => {
+        filteredIntents.forEach(([id, intent,  similarity]) => {
             const intentItem = document.createElement('div');
             intentItem.className = 'intent-item';
             intentItem.onclick = () => this.selectIntent(id);
 
+            if (similarity > SalesQnASettings.adminThreshold) {
+                const greenValue = Math.floor(100 + similarity * 205);
+                const bgColor = `rgba(0, ${greenValue}, 0, 0.2)`;
+                intentItem.style.backgroundColor = bgColor;
+            }
+
+            const similarityPercent = Math.round(similarity * 100);
+
             intentItem.innerHTML = `
-                    <div class="intent-name">${intent.name}</div>
-                    <div class="intent-meta">
-                        <span>${intent.questions.length} questions</span>
-                        <span>${intent.answer ? '✓' : '○'}</span>
+                <div class="intent-name">${intent.name}</div>
+                <div class="intent-meta">
+                    <span>${intent.questions.length} questions</span>
+                    ${similarity > SalesQnASettings.adminThreshold ? `
+                        <span>Similarity: ${similarityPercent}%</span>
                     </div>
-                `;
+                ` : `<span>${intent.answer ? '✓' : '○'}</span>`}
+                </div>
+                
+            `;
 
             intentList.appendChild(intentItem);
         });
@@ -156,9 +183,46 @@ class SalesQnaAdminPanel {
 
     intentSearch = () => {
         const searchInput = document.getElementById('intentSearch');
+        const searchBox = document.querySelector('.search-box');
+
         searchInput.addEventListener('input', (e) => {
             this.renderIntentList(e.target.value);
         });
+
+        searchInput.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                if (e.target.value.trim() === '') {
+                    this.renderIntentList('');
+                    return;
+                }
+
+                searchBox.classList.add('loading'); // ✅ show loader
+
+                try {
+                    const data = {
+                        search: e.target.value
+                    };
+
+                    const response = await this.apiRequest({
+                        url: '/wp-json/sales-qna/v1/answers/get',
+                        body: data
+                    });
+
+                    const filter = response.map(match => ({
+                        id: String(match.id),
+                        similarity: match.similarity,
+                        filter: e.target.value
+                    })).filter(match => match.similarity > SalesQnASettings.adminThreshold);
+
+                    this.renderIntentList(filter);
+                } catch (err) {
+                    console.error('Search error:', err.message);
+                    this.showStatus(err.message, 'error');
+                } finally {
+                    searchBox.classList.remove('loading');
+                }
+            }
+        })
     }
 
     selectIntent = (intentId, event = null) => {
@@ -858,6 +922,7 @@ class SalesQnaAdminPanel {
     loadSettings = () => {
         const direction = SalesQnASettings.direction;
         const apiKey = SalesQnASettings.apiKey;
+        const adminThreshold = SalesQnASettings.adminThreshold;
 
         if (direction === 'rtl') {
             document.querySelector('.sales-qna-container')?.classList.add('rtl');
@@ -867,17 +932,24 @@ class SalesQnaAdminPanel {
         if (apiKey) {
             document.getElementById('apiKey').value = apiKey;
         }
+
+        if (adminThreshold) {
+            document.getElementById('adminThreshold').value = adminThreshold;
+        }
     }
 
     saveSettings = () => {
         const apiKeyInput = document.getElementById('apiKey');
+        const adminThresholdyInput = document.getElementById('adminThreshold');
         const dir = document.querySelector('.sales-qna-container')?.classList.contains('rtl') ? 'rtl' : 'ltr';
 
         const apiKey = apiKeyInput.value.trim();
+        const adminThreshold = adminThresholdyInput.value.trim();
 
         const data = {
             apiKey: apiKey,
-            direction: dir
+            direction: dir,
+            adminThreshold: adminThreshold
         }
         this.apiRequest({
             url: '/wp-json/sales-qna/v1/settings/save',
