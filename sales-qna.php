@@ -6,7 +6,7 @@
  * Plugin Name:   Sales Q&A Knowledge Base
  * Plugin URI:    https://github.com/nimrod-cohen/sales-qna
  * Description:   Manage a Hebrew Q&A knowledge base for your sales team.
- * Version:       1.0.8
+ * Version:       1.8
  * Author:        nimrod-cohen
  * Author URI:    https://github.com/nimrod-cohen/sales-qna
  * License:       GPL-2.0+
