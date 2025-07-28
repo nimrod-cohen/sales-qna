@@ -58,7 +58,24 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
                     </div>
                 </div>
             </div>
+
+            <div class="sales-qna-section">
+                <!-- Tag Cloud Section -->
+                <section class="tag-cloud-section">
+                    <div class="tag-cloud-container">
+                        <div class="tag-cloud-list" id="tagCloud">
+                            <!-- Tags will be dynamically generated here -->
+                        </div>
+                    </div>
+                    <div class="tag-cloud-stats">
+                        <span class="stat">Total Tags: <span id="totalTags">0</span></span>
+                        <span class="stat">Most Used: <span id="mostUsed">-</span></span>
+                    </div>
+                </section>
+            </div>
         </div>
+
+
 
         <!-- Main Content Panel -->
         <div class="content-panel">

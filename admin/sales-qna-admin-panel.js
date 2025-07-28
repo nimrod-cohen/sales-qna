@@ -1,16 +1,20 @@
 JSUtils.domReady(function () {
+    const sharedState = StateManagerFactory();
     const salesQnA = new SalesQnaAdminPanel();
-    salesQnA.init();
+    const tagCoud = new TagCloudManager();
+    salesQnA.init(sharedState);
+    tagCoud.init(sharedState,salesQnA);
 });
 
 class SalesQnaAdminPanel {
     state = StateManagerFactory();
-
+    tags = [];
     currentIntentId = null;
     originalAnswer = '';
     searchedString = ''
 
-    init = async () => {
+    init = async (state) => {
+        this.state = state
         this.state.listen('intents', () => this.renderIntentList(''));
 
         this.reloadIntends();
@@ -183,46 +187,92 @@ class SalesQnaAdminPanel {
 
     intentSearch = () => {
         const searchInput = document.getElementById('intentSearch');
-        const searchBox = document.querySelector('.search-box');
+        const debouncedInput = this.debounce(this.handleSearchInput.bind(this), 250);
 
-        searchInput.addEventListener('input', (e) => {
-            this.renderIntentList(e.target.value);
-        });
-
+        searchInput.addEventListener('input', debouncedInput);
         searchInput.addEventListener('keydown', async (e) => {
             if (e.key === 'Enter') {
-                if (e.target.value.trim() === '') {
-                    this.renderIntentList('');
-                    return;
-                }
-
-                searchBox.classList.add('loading'); // ✅ show loader
-
-                try {
-                    const data = {
-                        search: e.target.value
-                    };
-
-                    const response = await this.apiRequest({
-                        url: '/wp-json/sales-qna/v1/answers/get',
-                        body: data
-                    });
-
-                    const filter = response.map(match => ({
-                        id: String(match.id),
-                        similarity: match.similarity,
-                        filter: e.target.value
-                    })).filter(match => match.similarity > SalesQnASettings.adminThreshold);
-
-                    this.renderIntentList(filter);
-                } catch (err) {
-                    console.error('Search error:', err.message);
-                    this.showStatus(err.message, 'error');
-                } finally {
-                    searchBox.classList.remove('loading');
-                }
+                this.searchEmbeddings(e);
             }
         })
+    }
+
+    handleSearchInput = (e) => {
+        const input = e.target.value;
+
+        // Match all tags that start with `#` and go until a comma, newline, or another `#`
+        const tagPattern = /#([^#,\n\r]+)/g;
+        const tags = [];
+        let match;
+
+        while ((match = tagPattern.exec(input)) !== null) {
+            tags.push(match[1].trim());
+        }
+
+        const normalQuery = input
+            .replace(tagPattern, '')
+            .replace(/,+/g, '')
+            .trim();
+
+        if (tags.length > 0) {
+            this.searchTags(tags);
+        } else if (normalQuery.length > 0) {
+            this.renderIntentList(normalQuery);
+        } else {
+            this.renderIntentList();
+        }
+    }
+
+    searchTags = (tags) => {
+        const intents = this.state.get('intents');
+
+        const searchResults = intents
+            .filter(intent => {
+                return intent.tags.some(intentTag =>
+                    tags.some(searchTag =>
+                        intentTag.toLowerCase() === searchTag.toLowerCase()
+                    )
+                );
+            })
+            .map(intent => ({
+                id: intent.id,
+                filter: `#${tags.join(' #')}`
+            }));
+
+        this.renderIntentList(searchResults);
+    }
+
+    searchEmbeddings = async (e) => {
+        if (e.target.value.trim() === '') {
+            this.renderIntentList('');
+            return;
+        }
+        const searchBox = document.querySelector('.search-box');
+        searchBox.classList.add('loading'); // ✅ show loader
+
+        try {
+            const data = {
+                search: e.target.value
+            };
+
+            const response = await this.apiRequest({
+                url: '/wp-json/sales-qna/v1/answers/get',
+                body: data
+            });
+
+            const filter = response.map(match => ({
+                id: String(match.id),
+                similarity: match.similarity,
+                filter: e.target.value
+            })).filter(match => match.similarity > SalesQnASettings.adminThreshold);
+
+            this.renderIntentList(filter);
+        } catch (err) {
+            console.error('Search error:', err.message);
+            this.showStatus(err.message, 'error');
+        } finally {
+            searchBox.classList.remove('loading');
+        }
     }
 
     selectIntent = (intentId, event = null) => {
@@ -1102,6 +1152,272 @@ class SalesQnaAdminPanel {
         } catch (error) {
             console.error('Export failed:', error);
             this.showStatus('Export failed: ' + error.message, error);
+        }
+    }
+
+    debounce = (fn, delay = 300) => {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+}
+
+// Tag Cloud Integration Script
+class TagCloudManager {
+    state = StateManagerFactory();
+    constructor() {
+        this.tagData = new Map();
+        this.currentView = 'cloud';
+        this.maxFontSize = 1.4;
+        this.minFontSize = 0.8;
+    }
+
+    init(state,adminPanelInstance) {
+        this.state = state;
+        this.state.listen('intents', () => this.loadSampleData());
+        this.adminPanel = adminPanelInstance
+    }
+
+    loadSampleData() {
+        const intentsData = this.state.get('intents');
+        const allTags = this.extractTagsWithMetadata(intentsData);
+
+        allTags.forEach(tag => {
+            this.tagData.set(tag.text, tag);
+        });
+
+        this.bindEvents();
+        this.renderTagCloud();
+        this.updateStats();
+    }
+
+    extractTagsWithMetadata = (intentsData) => {
+        const tagMap = new Map();
+
+        intentsData.forEach((intent, index) => {
+            const intentName = intent.name.toLowerCase();
+            const intentId = index;
+
+            intent.tags.forEach(tagText => {
+                const normalizedText = tagText.toLowerCase().trim();
+
+                if (!tagMap.has(normalizedText)) {
+                    tagMap.set(normalizedText, {
+                        text: normalizedText,
+                        frequency: 1,
+                        category: `category-${intentName}`, // Simple category naming
+                        intent: intentName,
+                        id: intentId
+                    });
+                } else {
+                    // If already exists, increment frequency
+                    const existing = tagMap.get(normalizedText);
+                    existing.frequency++;
+                }
+            });
+        });
+
+        return Array.from(tagMap.values());
+    }
+
+    // Bind event listeners
+    bindEvents() {
+        // Intent selection
+        const intentItems = document.querySelectorAll('.intent-item');
+        intentItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                this.selectIntent(e.currentTarget);
+            });
+        });
+    }
+
+    // Calculate tag size based on frequency
+    calculateTagSize(frequency) {
+        const frequencies = Array.from(this.tagData.values()).map(tag => tag.frequency);
+        const maxFreq = Math.max(...frequencies);
+        const minFreq = Math.min(...frequencies);
+
+        if (maxFreq === minFreq) return 3;
+
+        const normalized = (frequency - minFreq) / (maxFreq - minFreq);
+        return Math.ceil(normalized * 4) + 1; // Size 1-5
+    }
+
+    // Render the tag cloud
+    renderTagCloud(filteredTags = null) {
+        const tagCloudElement = document.getElementById('tagCloud');
+        if (!tagCloudElement) return;
+
+        const tagsToRender = filteredTags || Array.from(this.tagData.values());
+
+        // Clear existing tags
+        tagCloudElement.innerHTML = '';
+
+        // Sort tags by frequency (descending)
+        const sortedTags = tagsToRender.sort((a, b) => b.frequency - a.frequency);
+
+        // Create tag elements
+        sortedTags.forEach((tag, index) => {
+            const tagElement = this.createTagElement(tag, index);
+            tagCloudElement.appendChild(tagElement);
+        });
+
+        // Apply current view class
+        tagCloudElement.className = `tag-cloud-list`;
+    }
+
+    // Create individual tag element
+    createTagElement(tag, index) {
+        const tagElement = document.createElement('a');
+        tagElement.href = '#';
+        tagElement.className = `cloud-tag size-${this.calculateTagSize(tag.frequency)} ${tag.category}`;
+        tagElement.textContent = tag.text;
+        tagElement.title = `${tag.text} (${tag.frequency} occurrences)`;
+
+        // Add accessibility attributes
+        tagElement.setAttribute('role', 'button');
+        tagElement.setAttribute('aria-label', `Tag: ${tag.text}, frequency: ${tag.frequency}`);
+        tagElement.setAttribute('tabindex', '0');
+
+        // Add click and keyboard event listeners
+        tagElement.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handleTagClick(tag);
+        });
+
+        tagElement.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.handleTagClick(tag);
+            }
+        });
+
+        // Add animation delay for staggered appearance
+        tagElement.style.animationDelay = `${index * 0.1}s`;
+
+        return tagElement;
+    }
+
+    // Handle tag click
+    handleTagClick(tag) {
+        console.log(`Tag clicked: ${tag.text}`, tag);
+        const searchInput = document.getElementById('intentSearch');
+        const tagText = tag.text || tag
+
+        searchInput.value = `#${tagText}`;
+
+        // Visual feedback for tag click
+        const allTags = document.querySelectorAll('.cloud-tag');
+        allTags.forEach(t => t.style.opacity = '0.5');
+
+        const clickedElement = Array.from(allTags).find(el => el.textContent === tag.text);
+        if (clickedElement) {
+            clickedElement.style.opacity = '1';
+            clickedElement.style.transform = 'scale(1.1)';
+
+            setTimeout(() => {
+                allTags.forEach(t => t.style.opacity = '1');
+                clickedElement.style.transform = '';
+            }, 1000);
+        }
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Filter tags based on search input
+    filterTags(searchTerm) {
+        console.log(searchTerm)
+        if (!searchTerm.trim()) {
+            this.renderTagCloud();
+            return;
+        }
+
+        const filteredTags = Array.from(this.tagData.values()).filter(tag =>
+            tag.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            tag.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            tag.intent.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        this.renderTagCloud(filteredTags);
+    }
+
+    // Select intent and filter related tags
+    selectIntent(intentElement) {
+        // Remove active class from all intents
+        document.querySelectorAll('.intent-item').forEach(item => {
+            item.classList.remove('active');
+        });
+
+        // Add active class to selected intent
+        intentElement.classList.add('active');
+
+        // Get intent name
+        const intentName = intentElement.dataset.intent;
+
+        // Update main content
+        this.updateMainContent(intentName);
+
+        // Filter tags by intent
+        const intentTags = Array.from(this.tagData.values()).filter(tag =>
+            tag.intent === intentName
+        );
+
+        this.renderTagCloud(intentTags);
+    }
+
+    // Update main content based on selected intent
+    updateMainContent(intentName) {
+        const currentIntentElement = document.getElementById('current-intent');
+        if (currentIntentElement) {
+            currentIntentElement.textContent = intentName.charAt(0).toUpperCase() + intentName.slice(1);
+        }
+
+        // Update answer based on intent (sample data)
+        const answerInput = document.querySelector('.answer-input');
+        const sampleAnswers = {
+            payment: 'Payment processing is secure and handled through encrypted channels.',
+            suitability: 'Course is easy and suitable for beginners.',
+            real: 'Yes, this is a genuine and authentic service.',
+            cost: 'Our pricing is competitive and affordable for all budgets.'
+        };
+
+        if (answerInput && sampleAnswers[intentName]) {
+            answerInput.value = sampleAnswers[intentName];
+        }
+
+        // Update current tags
+        const currentTagsElement = document.querySelector('.current-tags');
+        const sampleCurrentTags = {
+            payment: ['secure payment', 'encryption', 'processing'],
+            suitability: ['course', 'easy', 'beginner'],
+            real: ['authentic', 'genuine', 'verified'],
+            cost: ['affordable', 'pricing', 'budget']
+        };
+
+        if (currentTagsElement && sampleCurrentTags[intentName]) {
+            currentTagsElement.innerHTML = sampleCurrentTags[intentName]
+                .map(tag => `<span class="tag">${tag}</span>`)
+                .join('');
+        }
+    }
+
+    // Update tag cloud statistics
+    updateStats() {
+        const totalTagsElement = document.getElementById('totalTags');
+        const mostUsedElement = document.getElementById('mostUsed');
+
+        if (totalTagsElement) {
+            totalTagsElement.textContent = this.tagData.size;
+        }
+
+        if (mostUsedElement) {
+            const sortedTags = Array.from(this.tagData.values())
+                .sort((a, b) => b.frequency - a.frequency);
+
+            if (sortedTags.length > 0) {
+                mostUsedElement.textContent = `${sortedTags[0].text} (${sortedTags[0].frequency})`;
+            }
         }
     }
 }
