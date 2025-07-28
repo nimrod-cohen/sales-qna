@@ -2,8 +2,9 @@ JSUtils.domReady(function () {
     const sharedState = StateManagerFactory();
     const salesQnA = new SalesQnaAdminPanel();
     const tagCoud = new TagCloudManager();
+
     salesQnA.init(sharedState);
-    tagCoud.init(sharedState,salesQnA);
+    tagCoud.init(sharedState);
 });
 
 class SalesQnaAdminPanel {
@@ -18,7 +19,7 @@ class SalesQnaAdminPanel {
         this.state.listen('intents', () => this.renderIntentList(''));
 
         this.reloadIntends();
-        this.intentSearch();
+        this.loadSearch();
         this.loadSettings();
 
         JSUtils.addGlobalEventListener(document, '#open-settings-button', 'click', this.toggleSettings);
@@ -106,86 +107,7 @@ class SalesQnaAdminPanel {
         }
     }
 
-    renderIntentList = (filter = '') => {
-        const intentList = document.getElementById('intentList');
-        intentList.innerHTML = '';
-
-        this.searchedString = '';
-
-        let intentsData = this.state.get('intents');
-        let filteredIntents;
-
-        if (Array.isArray(filter)) {
-            filteredIntents = filter
-                .map(filterId => {
-                    let foundEntry = Object.entries(intentsData).find(([id, intent]) => intent.id === filterId.id);
-                    if (!foundEntry) return null;
-
-                    foundEntry.push(filterId.similarity);
-                    return foundEntry
-                })
-                .filter(Boolean);
-        } else {
-            const lowerFilter = filter.toLowerCase().trim();
-            const hasFilter = lowerFilter.length > 0;
-
-            filteredIntents = Object.entries(intentsData).filter(([id, intent]) => {
-                if (!hasFilter) return true; // Show all if no filter
-
-                const nameMatches = intent.name.toLowerCase().includes(lowerFilter);
-                const questionsMatch = intent.questions?.some(question =>
-                    question.text?.toLowerCase().includes(lowerFilter)
-                );
-
-                this.searchedString = lowerFilter;
-                return nameMatches || questionsMatch;
-            });
-
-        }
-
-        if (filteredIntents.length === 0) {
-            intentList.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                        </div>
-                        <p>No intents found</p>
-                         <p>If you're not finding what you need, try again by pressing <kbd>Enter</kbd> to deep search for embedded intents.</p>
-                    </div>
-                `;
-            return;
-        }
-
-        filteredIntents.forEach(([id, intent,  similarity]) => {
-            const intentItem = document.createElement('div');
-            intentItem.className = 'intent-item';
-            intentItem.onclick = () => this.selectIntent(id);
-
-            if (similarity > SalesQnASettings.adminThreshold) {
-                const greenValue = Math.floor(100 + similarity * 205);
-                const bgColor = `rgba(0, ${greenValue}, 0, 0.2)`;
-                intentItem.style.backgroundColor = bgColor;
-            }
-
-            const similarityPercent = Math.round(similarity * 100);
-
-            intentItem.innerHTML = `
-                <div class="intent-name">${intent.name}</div>
-                <div class="intent-meta">
-                    <span>${intent.questions.length} questions</span>
-                    ${similarity > SalesQnASettings.adminThreshold ? `
-                        <span>Similarity: ${similarityPercent}%</span>
-                    </div>
-                ` : `<span>${intent.answer ? '✓' : '○'}</span>`}
-                </div>
-                
-            `;
-
-            intentList.appendChild(intentItem);
-        });
-    }
-
-    intentSearch = () => {
+    loadSearch = () => {
         const searchInput = document.getElementById('intentSearch');
         const debouncedInput = this.debounce(this.handleSearchInput.bind(this), 250);
 
@@ -273,6 +195,86 @@ class SalesQnaAdminPanel {
         } finally {
             searchBox.classList.remove('loading');
         }
+    }
+
+    renderIntentList = (filter = '') => {
+        const intentList = document.getElementById('intentList');
+        intentList.innerHTML = '';
+
+        this.searchedString = '';
+
+        let intentsData = this.state.get('intents');
+        let filteredIntents;
+
+        if (Array.isArray(filter)) {
+            filteredIntents = filter
+                .map(filterId => {
+                    let foundEntry = Object.entries(intentsData).find(([id, intent]) => intent.id === filterId.id);
+                    if (!foundEntry) return null;
+
+                    foundEntry.push(filterId.similarity);
+                    return foundEntry
+                })
+                .filter(Boolean);
+        } else {
+            const lowerFilter = filter.toLowerCase().trim();
+            const hasFilter = lowerFilter.length > 0;
+
+            filteredIntents = Object.entries(intentsData).filter(([id, intent]) => {
+                if (!hasFilter) return true; // Show all if no filter
+
+                const nameMatches = intent.name.toLowerCase().includes(lowerFilter);
+                const questionsMatch = intent.questions?.some(question =>
+                    question.text?.toLowerCase().includes(lowerFilter)
+                );
+
+                this.searchedString = lowerFilter;
+                return nameMatches || questionsMatch;
+            });
+
+        }
+
+        if (filteredIntents.length === 0) {
+            intentList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </div>
+                        <p>No intents found</p>
+                         <p>If you're not finding what you need, try again by pressing <kbd>Enter</kbd> to deep search for embedded intents.</p>
+                         <p>Or search by tags by writing <kbd>#</kbd> before your keyword.</p>
+                    </div>
+                `;
+            return;
+        }
+
+        filteredIntents.forEach(([id, intent,  similarity]) => {
+            const intentItem = document.createElement('div');
+            intentItem.className = 'intent-item';
+            intentItem.onclick = () => this.selectIntent(id);
+
+            if (similarity > SalesQnASettings.adminThreshold) {
+                const greenValue = Math.floor(100 + similarity * 205);
+                const bgColor = `rgba(0, ${greenValue}, 0, 0.2)`;
+                intentItem.style.backgroundColor = bgColor;
+            }
+
+            const similarityPercent = Math.round(similarity * 100);
+
+            intentItem.innerHTML = `
+                <div class="intent-name">${intent.name}</div>
+                <div class="intent-meta">
+                    <span>${intent.questions.length} questions</span>
+                    ${similarity > SalesQnASettings.adminThreshold ? `
+                        <span>Similarity: ${similarityPercent}%</span>
+                    </div>
+                ` : `<span>${intent.answer ? '✓' : '○'}</span>`}
+                </div>
+                
+            `;
+
+            intentList.appendChild(intentItem);
+        });
     }
 
     selectIntent = (intentId, event = null) => {
@@ -704,8 +706,6 @@ class SalesQnaAdminPanel {
         const tagString = input.value;
         const tags = this.parseTags(tagString);
 
-        if (tags.length === 0) return;
-
         const intentsData = this.state.get('intents');
 
         const intent = intentsData[this.currentIntentId];
@@ -732,6 +732,8 @@ class SalesQnaAdminPanel {
         this.apiRequest({
             url: '/wp-json/sales-qna/v1/tags/save',
             body: data
+        }).then((res) =>{
+            this.reloadIntends();
         }).catch((error) => {
             this.showStatus(error.message || 'An error occurred', 'error');
         });
@@ -1164,36 +1166,35 @@ class SalesQnaAdminPanel {
     }
 }
 
-// Tag Cloud Integration Script
 class TagCloudManager {
     state = StateManagerFactory();
+
     constructor() {
         this.tagData = new Map();
-        this.currentView = 'cloud';
-        this.maxFontSize = 1.4;
-        this.minFontSize = 0.8;
+        this.totalTagCount = 0;
     }
 
-    init(state,adminPanelInstance) {
+    init(state) {
         this.state = state;
-        this.state.listen('intents', () => this.loadSampleData());
-        this.adminPanel = adminPanelInstance
+        this.state.listen('intents', () => this.loadTagsFromState());
     }
 
-    loadSampleData() {
+    loadTagsFromState() {
         const intentsData = this.state.get('intents');
-        const allTags = this.extractTagsWithMetadata(intentsData);
+        const allTags = this.extractTagsWithMetadata(intentsData, 15);
+
+        // Clear existing data before adding new tags
+        this.tagData.clear();
 
         allTags.forEach(tag => {
             this.tagData.set(tag.text, tag);
         });
 
-        this.bindEvents();
         this.renderTagCloud();
         this.updateStats();
     }
 
-    extractTagsWithMetadata = (intentsData) => {
+    extractTagsWithMetadata = (intentsData, mostUsedTagsCount = 15) => {
         const tagMap = new Map();
 
         intentsData.forEach((intent, index) => {
@@ -1207,33 +1208,23 @@ class TagCloudManager {
                     tagMap.set(normalizedText, {
                         text: normalizedText,
                         frequency: 1,
-                        category: `category-${intentName}`, // Simple category naming
                         intent: intentName,
                         id: intentId
                     });
                 } else {
-                    // If already exists, increment frequency
                     const existing = tagMap.get(normalizedText);
                     existing.frequency++;
                 }
             });
         });
 
-        return Array.from(tagMap.values());
+        this.totalTagCount = tagMap.size;
+
+        return Array.from(tagMap.values())
+            .sort((a, b) => b.frequency - a.frequency)
+            .slice(0, mostUsedTagsCount);
     }
 
-    // Bind event listeners
-    bindEvents() {
-        // Intent selection
-        const intentItems = document.querySelectorAll('.intent-item');
-        intentItems.forEach(item => {
-            item.addEventListener('click', (e) => {
-                this.selectIntent(e.currentTarget);
-            });
-        });
-    }
-
-    // Calculate tag size based on frequency
     calculateTagSize(frequency) {
         const frequencies = Array.from(this.tagData.values()).map(tag => tag.frequency);
         const maxFreq = Math.max(...frequencies);
@@ -1245,30 +1236,24 @@ class TagCloudManager {
         return Math.ceil(normalized * 4) + 1; // Size 1-5
     }
 
-    // Render the tag cloud
     renderTagCloud(filteredTags = null) {
         const tagCloudElement = document.getElementById('tagCloud');
         if (!tagCloudElement) return;
 
         const tagsToRender = filteredTags || Array.from(this.tagData.values());
 
-        // Clear existing tags
         tagCloudElement.innerHTML = '';
 
-        // Sort tags by frequency (descending)
         const sortedTags = tagsToRender.sort((a, b) => b.frequency - a.frequency);
 
-        // Create tag elements
         sortedTags.forEach((tag, index) => {
             const tagElement = this.createTagElement(tag, index);
             tagCloudElement.appendChild(tagElement);
         });
 
-        // Apply current view class
         tagCloudElement.className = `tag-cloud-list`;
     }
 
-    // Create individual tag element
     createTagElement(tag, index) {
         const tagElement = document.createElement('a');
         tagElement.href = '#';
@@ -1276,12 +1261,10 @@ class TagCloudManager {
         tagElement.textContent = tag.text;
         tagElement.title = `${tag.text} (${tag.frequency} occurrences)`;
 
-        // Add accessibility attributes
         tagElement.setAttribute('role', 'button');
         tagElement.setAttribute('aria-label', `Tag: ${tag.text}, frequency: ${tag.frequency}`);
         tagElement.setAttribute('tabindex', '0');
 
-        // Add click and keyboard event listeners
         tagElement.addEventListener('click', (e) => {
             e.preventDefault();
             this.handleTagClick(tag);
@@ -1294,21 +1277,17 @@ class TagCloudManager {
             }
         });
 
-        // Add animation delay for staggered appearance
         tagElement.style.animationDelay = `${index * 0.1}s`;
 
         return tagElement;
     }
 
-    // Handle tag click
     handleTagClick(tag) {
-        console.log(`Tag clicked: ${tag.text}`, tag);
         const searchInput = document.getElementById('intentSearch');
         const tagText = tag.text || tag
 
         searchInput.value = `#${tagText}`;
 
-        // Visual feedback for tag click
         const allTags = document.querySelectorAll('.cloud-tag');
         allTags.forEach(t => t.style.opacity = '0.5');
 
@@ -1325,90 +1304,12 @@ class TagCloudManager {
         searchInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
-    // Filter tags based on search input
-    filterTags(searchTerm) {
-        console.log(searchTerm)
-        if (!searchTerm.trim()) {
-            this.renderTagCloud();
-            return;
-        }
-
-        const filteredTags = Array.from(this.tagData.values()).filter(tag =>
-            tag.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            tag.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            tag.intent.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-
-        this.renderTagCloud(filteredTags);
-    }
-
-    // Select intent and filter related tags
-    selectIntent(intentElement) {
-        // Remove active class from all intents
-        document.querySelectorAll('.intent-item').forEach(item => {
-            item.classList.remove('active');
-        });
-
-        // Add active class to selected intent
-        intentElement.classList.add('active');
-
-        // Get intent name
-        const intentName = intentElement.dataset.intent;
-
-        // Update main content
-        this.updateMainContent(intentName);
-
-        // Filter tags by intent
-        const intentTags = Array.from(this.tagData.values()).filter(tag =>
-            tag.intent === intentName
-        );
-
-        this.renderTagCloud(intentTags);
-    }
-
-    // Update main content based on selected intent
-    updateMainContent(intentName) {
-        const currentIntentElement = document.getElementById('current-intent');
-        if (currentIntentElement) {
-            currentIntentElement.textContent = intentName.charAt(0).toUpperCase() + intentName.slice(1);
-        }
-
-        // Update answer based on intent (sample data)
-        const answerInput = document.querySelector('.answer-input');
-        const sampleAnswers = {
-            payment: 'Payment processing is secure and handled through encrypted channels.',
-            suitability: 'Course is easy and suitable for beginners.',
-            real: 'Yes, this is a genuine and authentic service.',
-            cost: 'Our pricing is competitive and affordable for all budgets.'
-        };
-
-        if (answerInput && sampleAnswers[intentName]) {
-            answerInput.value = sampleAnswers[intentName];
-        }
-
-        // Update current tags
-        const currentTagsElement = document.querySelector('.current-tags');
-        const sampleCurrentTags = {
-            payment: ['secure payment', 'encryption', 'processing'],
-            suitability: ['course', 'easy', 'beginner'],
-            real: ['authentic', 'genuine', 'verified'],
-            cost: ['affordable', 'pricing', 'budget']
-        };
-
-        if (currentTagsElement && sampleCurrentTags[intentName]) {
-            currentTagsElement.innerHTML = sampleCurrentTags[intentName]
-                .map(tag => `<span class="tag">${tag}</span>`)
-                .join('');
-        }
-    }
-
-    // Update tag cloud statistics
     updateStats() {
         const totalTagsElement = document.getElementById('totalTags');
         const mostUsedElement = document.getElementById('mostUsed');
 
         if (totalTagsElement) {
-            totalTagsElement.textContent = this.tagData.size;
+            totalTagsElement.textContent = this.totalTagCount;
         }
 
         if (mostUsedElement) {

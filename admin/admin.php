@@ -60,6 +60,13 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
             </div>
 
             <div class="sales-qna-section">
+                <h2 class="title">
+                    <span class="icon">
+                        <i class="fa-solid fa-tags"></i>
+                    </span>
+                    Most Used Tags
+                </h2>
+
                 <!-- Tag Cloud Section -->
                 <section class="tag-cloud-section">
                     <div class="tag-cloud-container">

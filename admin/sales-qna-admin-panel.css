@@ -1215,7 +1215,7 @@ body {
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 1rem;
+  gap: 0.4rem;
   line-height: 1.4;
   transition: all 0.3s ease;
 }
@@ -1232,7 +1232,6 @@ body {
   font-weight: 500;
   transition: all 0.2s ease;
   text-decoration: none;
-  padding: 10px;
   border-radius: 30px;
 }
 
@@ -1241,46 +1240,25 @@ body {
 }
 
  Tag Size Variations
-.cloud-tag.size-1 { font-size: 0.8rem;}
-.cloud-tag.size-2 { font-size: 0.9rem; }
-.cloud-tag.size-3 { font-size: 1rem; }
-.cloud-tag.size-4 { font-size: 1.2rem; }
-.cloud-tag.size-5 { font-size: 1.4rem; }
+.cloud-tag.size-1 { font-size: 0.3rem; }
+.cloud-tag.size-2 { font-size: 0.5rem; }
+.cloud-tag.size-3 { font-size: 0.7rem; }
+.cloud-tag.size-4 { font-size: 0.9rem; }
+.cloud-tag.size-5 { font-size: 1.0rem; padding: 8px 12px;}
 
 /* Tag Cloud Stats */
 .tag-cloud-stats {
   display: flex;
   justify-content: space-between;
   padding: 1rem;
-  background: white;
-  border-radius: 6px;
-  font-size: 0.9rem;
+  font-size: 0.7rem;
 }
 
 .stat {
-  color: #6c757d;
+  color: #64748b;
 }
 
 .stat span {
   font-weight: 600;
   color: #333;
-}
-
-/**/
-.tag-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: #dbeafe;
-  color: #1e40af;
-  border: 1px solid #bfdbfe;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-.remove-tag {
-  cursor: pointer;
-  margin-left: 4px;
-  font-weight: bold;
 }
