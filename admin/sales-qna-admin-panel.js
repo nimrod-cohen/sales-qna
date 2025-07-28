@@ -48,23 +48,11 @@ class SalesQnaAdminPanel {
         JSUtils.addGlobalEventListener(document, '#add-new-question', 'click', this.addNewQuestion);
         JSUtils.addGlobalEventListener(document, '#delete-question', 'click', this.doDeleteQuestion);
 
-        JSUtils.addGlobalEventListener(document, '#cancel-tag-edit', 'click', (event) => {
-            const index = event.target.dataset.index;
-            this.cancelTagEdit(index);
-        });
-        JSUtils.addGlobalEventListener(document, '#save-tag-edit', 'click', (event) => {
-            const index = event.target.dataset.index;
-            this.saveTagEdit(index);
-        });
-
         JSUtils.addGlobalEventListener(document, '.tags-display-mode', 'click', (event) => {
             const el = event.target.closest('.tags-display-mode');
             if (!el) return;
-
-            const index = el.dataset.index;
-            this.enterTagEditMode(index);
+            this.enterTagEditMode();
         });
-
 
         document.addEventListener('keypress', this.handleEnterKeyPress);
         document.addEventListener('blur', (event) => {
@@ -72,8 +60,6 @@ class SalesQnaAdminPanel {
             if (input.classList.contains('question-input')) {
                 const index = input.id.split('-')[2];
                 this.updateQuestion(index, input);
-            } else if (input.classList.contains('tags-input')) {
-                this.saveTagEdit(input.dataset.index);
             }
         }, true);
     }
@@ -666,30 +652,21 @@ class SalesQnaAdminPanel {
             .trim();
     };
 
-    parseTags = (tagString) => {
-        if (!tagString || typeof tagString !== 'string') return [];
-
-        return tagString
-            .split(',')
-            .map(tag => this.validateTag(tag))
-            .filter(tag => tag)
-            .slice(0, 10);
-    }
-
     enterTagEditMode = () => {
-        const displayMode = document.getElementById(`tagsDisplay`);
-        const editMode = document.getElementById(`tagsEdit`);
-        const input = document.getElementById(`tagsInput`);
+        const displayMode = document.getElementById('tagsDisplay');
+        const editMode = document.getElementById('tagsEdit');
+        const input = document.getElementById('tagInputField');
 
-        displayMode.style.display = 'none';
-        editMode.classList.add('active');
+        if (displayMode) displayMode.style.display = 'none';
+        if (editMode) editMode.classList.add('active');
 
-        // Focus on input and select all text
-        setTimeout(() => {
-            input.focus();
-            input.select();
-        }, 100);
-    }
+        if (input) {
+            setTimeout(() => {
+                input.focus();
+            }, 100);
+        }
+    };
+
 
     exitTagEditMode = () => {
         const displayMode = document.getElementById(`tagsDisplay`);
@@ -699,17 +676,16 @@ class SalesQnaAdminPanel {
         displayMode.style.display = 'block';
     }
 
-    saveTagEdit = (questionIndex) => {
-        if (this.currentIntentId === null || this.currentIntentId === undefined) return;
+    saveTagEdit = () => {
+        if (this.currentIntentId == null) return;
 
-        const input = document.getElementById(`tagsInput`);
-        const tagString = input.value;
-        const tags = this.parseTags(tagString);
+        const tagElements = document.querySelectorAll('#tagsPills .tag-item');
+        const tags = Array.from(tagElements).map(el =>
+            el.textContent.replace('×', '').trim()
+        );
 
         const intentsData = this.state.get('intents');
-
         const intent = intentsData[this.currentIntentId];
-
 
         if (typeof intent === 'string') {
             intentsData[this.currentIntentId].tags = {
@@ -720,8 +696,8 @@ class SalesQnaAdminPanel {
             intent.tags = tags;
         }
 
-        this.updateTagsDisplay(questionIndex, tags);
-        this.exitTagEditMode(questionIndex);
+        this.updateTagsDisplay(tags);
+        this.exitTagEditMode();
         this.renderIntentList();
 
         const data = {
@@ -732,67 +708,72 @@ class SalesQnaAdminPanel {
         this.apiRequest({
             url: '/wp-json/sales-qna/v1/tags/save',
             body: data
-        }).then((res) =>{
+        }).then(() => {
             this.reloadIntends();
         }).catch((error) => {
             this.showStatus(error.message || 'An error occurred', 'error');
         });
-    }
+    };
 
-    cancelTagEdit = (questionIndex) => {
+    cancelTagEdit = () => {
         if (this.currentIntentId === null || this.currentIntentId === undefined) return;
 
         const intentsData = this.state.get('intents');
         const intent = intentsData[this.currentIntentId];
         const originalTags = typeof intent === 'object' ? (intent.tags || []) : [];
-        const input = document.getElementById(`tagsInput`);
 
-        input.value = originalTags.join(', ');
+        this.renderTags(originalTags);
 
-        this.exitTagEditMode(questionIndex);
-    }
+        this.exitTagEditMode();
+    };
 
-    updateTagsDisplay = (questionIndex, tags) => {
-        const displayContainer = document.querySelector(`#tagsDisplay .tags-display`);
+    updateTagsDisplay = (tags) => {
+        const displayContainer = document.querySelector('#tagsDisplay .tags-display');
+        const displayMode = document.getElementById('tagsDisplay');
+
+        if (!displayContainer || !displayMode) return;
 
         displayContainer.innerHTML = this.renderTagsDisplay(tags);
 
-        // Update empty state class
-        const displayMode = document.getElementById(`tagsDisplay`);
-        if (tags.length === 0) {
-            displayMode.classList.add('empty');
-        } else {
-            displayMode.classList.remove('empty');
-        }
-    }
+        displayMode.classList.toggle('empty', tags.length === 0);
+    };
 
     renderTags = (tags) => {
         const tagsList = document.getElementById('tagsList');
-        tags = typeof tags === 'object' ? (tags || []) : [];
+        tags = Array.isArray(tags) ? tags : [];
 
         tagsList.innerHTML = `
-        <div class="intents-tags-section">
-            <div class="tags-container">
-                <!-- Display Mode -->
-                <div class="tags-display-mode ${tags.length === 0 ? 'empty' : ''}" id="tagsDisplay">
-                    <div class="tags-label">
-                        <i class="fa-solid fa-tags"></i> Tags
-                        <span class="tags-edit-hint">Click to edit</span>
-                    </div>
-                    <div class="tags-display">
-                        ${this.renderTagsDisplay(tags)}
-                    </div>
-                </div>
-    
-                <!-- Edit Mode -->
-                <div class="tags-edit-mode" id="tagsEdit">
-                    <div class="tags-input-group">
-                        <divclass="tags-label">
-                            <i class="fa-solid fa-pen"></i> 
-                            Edit Tags
+            <div class="intents-tags-section">
+                <div class="tags-container">
+                    <!-- Display Mode -->
+                    <div class="tags-display-mode ${tags.length === 0 ? 'empty' : ''}" id="tagsDisplay">
+                        <div class="tags-label">
+                            <i class="fa-solid fa-tags"></i> Tags
+                            <span class="tags-edit-hint">Click to edit</span>
                         </div>
-                        <input type="text" class="tags-input" id="tagsInput" value="${tags.join(', ')}"
-                               placeholder="Enter tags separated by commas (e.g. pricing, support, features)">
+                        <div class="tags-display">
+                            ${this.renderTagsDisplay(tags)}
+                        </div>
+                    </div>
+        
+                    <!-- Edit Mode -->
+                    <div class="tags-edit-mode" id="tagsEdit">
+                        <div class="tags-input-group">
+                            <div class="tags-label">
+                                <i class="fa-solid fa-pen"></i> 
+                                Edit Tags
+                            </div>
+                           <div class="tags-editable-area" id="tagsEditableArea">
+                                <div class="tags-pill-container" id="tagsPills">
+                                    ${tags.map(tag => `
+                                        <span class="tag-item">
+                                            ${tag}
+                                            <span class="tag-remove" data-tag="${tag}">&times;</span>
+                                        </span>
+                                    `).join('')}
+                                    <input type="text" class="tags-input" id="tagInputField" placeholder="Add tag..." />
+                                </div>
+                            </div>
                             <div class="tags-actions">
                                 <button id="save-tag-edit" class="tags-btn tags-btn-save">
                                     <i class="fa-solid fa-floppy-disk"></i> Save
@@ -801,12 +782,57 @@ class SalesQnaAdminPanel {
                                     <i class="fa-solid fa-xmark"></i> Cancel
                                 </button>
                             </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        `;
-    }
+            `;
+
+        this.handleTagListeners(tags);
+    };
+
+    handleTagListeners = (initialTags = []) => {
+        let tags = [...initialTags];
+
+        const tagInput = document.getElementById('tagInputField');
+        const tagsPills = document.getElementById('tagsPills');
+        const saveButton = document.getElementById('save-tag-edit');
+        const cancelButton = document.getElementById('cancel-tag-edit');
+
+        const updateTagsContainer = () => {
+            this.renderTags(tags);
+            this.enterTagEditMode();
+            this.handleTagListeners(tags);
+        };
+
+        tagInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                const newTag = tagInput.value.trim();
+                if (newTag && !tags.includes(newTag)) {
+                    tags.push(newTag);
+                    tagInput.value = '';
+                    updateTagsContainer();
+                }
+            }
+        });
+
+        tagsPills.addEventListener('click', (e) => {
+            if (e.target.classList.contains('tag-remove')) {
+                const tagToRemove = e.target.dataset.tag;
+                tags = tags.filter(tag => tag !== tagToRemove);
+                updateTagsContainer();
+            }
+        });
+
+        saveButton.addEventListener('click', () => {
+            this.saveTagEdit();
+        });
+
+        cancelButton.addEventListener('click', () => {
+            this.cancelTagEdit();
+        });
+    };
 
     renderTagsDisplay = (tags) => {
 
