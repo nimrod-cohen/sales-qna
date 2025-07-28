@@ -18,7 +18,7 @@ class SalesQnaAdminPanel {
         this.state = state
         this.state.listen('intents', () => this.renderIntentList(''));
 
-        this.reloadIntends();
+        this.reloadIntents();
         this.loadSearch();
         this.loadSettings();
 
@@ -81,7 +81,7 @@ class SalesQnaAdminPanel {
         }, 3000);
     }
 
-    reloadIntends = async () => {
+    reloadIntents = async () => {
         const res = await fetch('/wp-json/sales-qna/v1/intents/get', {
             method: 'POST'
         });
@@ -344,7 +344,7 @@ class SalesQnaAdminPanel {
             body: {name: name}
         }).then(() => {
             this.showStatus(`Intent "${name}" created successfully`);
-            this.reloadIntends();
+            this.reloadIntents();
             this.selectIntent(newId);
         });
     }
@@ -709,7 +709,7 @@ class SalesQnaAdminPanel {
             url: '/wp-json/sales-qna/v1/tags/save',
             body: data
         }).then(() => {
-            this.reloadIntends();
+            this.reloadIntents();
         }).catch((error) => {
             this.showStatus(error.message || 'An error occurred', 'error');
         });
@@ -1126,7 +1126,7 @@ class SalesQnaAdminPanel {
                     importButton.textContent = 'Import Q&A';
                     importButton.disabled = false;
                     e.target.value = '';
-                    this.reloadIntends();
+                    this.reloadIntents();
                 }, 2000);
             } else {
                 this.showStatus('Import failed: ' + (result.error || 'Unknown error'), 'error');
