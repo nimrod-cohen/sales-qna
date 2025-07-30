@@ -6,7 +6,7 @@
  * Plugin Name:   Sales Q&A Knowledge Base
  * Plugin URI:    https://github.com/nimrod-cohen/sales-qna
  * Description:   Manage a Hebrew Q&A knowledge base for your sales team.
- * Version:       1.8
+ * Version:       1.8.1
  * Author:        nimrod-cohen
  * Author URI:    https://github.com/nimrod-cohen/sales-qna
  * License:       GPL-2.0+
@@ -328,7 +328,6 @@ final class SalesQnA {
       self::update_option('admin_threshold', sanitize_text_field($params['adminThreshold']));
     }
 
-
     return rest_ensure_response(['status' => 'success']);
   }
 
@@ -369,8 +368,7 @@ final class SalesQnA {
     }
   }
 
-  public function sales_qna_export()
-  {
+  public function sales_qna_export() {
     $intents = $this->db->export();
 
     $jsonData = json_encode(['intents' => $intents], JSON_PRETTY_PRINT);
@@ -394,8 +392,7 @@ final class SalesQnA {
     }
   }
 
-  public function sales_qna_import()
-  {
+  public function sales_qna_import() {
     if (empty($_FILES['file'])) {
       return new WP_REST_Response(['error' => 'No file uploaded.'], 400);
     }

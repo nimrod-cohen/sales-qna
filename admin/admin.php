@@ -12,7 +12,7 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
           <button class="settings-trigger" id="open-settings-button" aria-label="Open Settings">
               <i class="fa-solid fa-gear"></i>
           </button>
-          <h1>Q&A Admin Panel</h1>
+          <h1>Sales Q&A</h1>
         </div>
         <p>Manage intents, answers, and questions</p>
     </div>
@@ -205,21 +205,6 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
     </div>
 
     <div class="settings-content">
-        <!-- Export/Import Support -->
-        <div class="setting-group">
-            <label class="setting-label">Export & Import Q&A Intents</label>
-            <p class="setting-description">
-                Manage your question-and-answer knowledge base by exporting existing intents or importing new ones.
-                This allows you to:<br><br>
-                • Backup your current Q&A pairs<br>
-                • Migrate intents between installations<br>
-                • Bulk import new questions and answers<br><br>
-            </p>
-            <button id="sales-qna-export" class="btn btn-secondary">Export Q&A</button>
-            <button id="sales-qna-import" class="btn btn-primary">Import Q&A</button>
-            <input type="file" id="sales-qna-import-form" accept=".zip" style="display: none;" />
-        </div>
-
         <!-- RTL Language Support -->
         <div class="setting-group">
             <label class="setting-label">Language Direction</label>
@@ -278,6 +263,21 @@ $dir = SalesQnA::get_option('text_direction', 'ltr');
                 To add the Q&A search feature to any page, simply use this shortcode:
                 <code>[sales_qna_search_page]</code>
             </p>
+        </div>
+
+        <!-- Export/Import Support -->
+        <div class="setting-group">
+            <label class="setting-label">Export & Import Q&A Intents</label>
+            <p class="setting-description">
+                Manage your question-and-answer knowledge base by exporting existing intents or importing new ones.
+                This allows you to:<br><br>
+                • Backup your current Q&A pairs<br>
+                • Migrate intents between installations<br>
+                • Bulk import new questions and answers<br><br>
+            </p>
+            <button id="sales-qna-export" class="btn btn-secondary">Export Q&A</button>
+            <button id="sales-qna-import" class="btn btn-primary">Import Q&A</button>
+            <input type="file" id="sales-qna-import-form" accept=".zip" style="display: none;" />
         </div>
 
         <!-- Save Button -->
