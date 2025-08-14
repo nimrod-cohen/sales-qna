@@ -336,6 +336,11 @@ final class SalesQnA {
   }
 
   public function render_search_page() {
+    self::enqueue_script('sales-qna-search', 'public/sales-qna-search.js', ['wpjsutils']);
+    self::enqueue_style('sales-qna-search', 'public/sales-qna-search.css', []);
+
+    wp_enqueue_style(self::FONT_AWESOME_HANDLE, self::FONT_AWESOME_URL);
+
     ob_start();
     include plugin_dir_path(__FILE__) . 'public/search.php';
 

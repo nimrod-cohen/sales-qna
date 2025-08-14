@@ -1,7 +1,7 @@
 <?php
 $dir = SalesQnA::get_option('text_direction', 'ltr');
 ?>
-<div class="sales-qna-search-page" style="direction:<?php echo esc_attr($dir); ?>;text-align:<?php echo($dir === 'rtl' ? 'right' : 'left'); ?>;">
+<div class="sales-qna-search-page" style="max-width: 1200px; direction:<?php echo esc_attr($dir); ?>;text-align:<?php echo($dir === 'rtl' ? 'right' : 'left'); ?>;">
     <div class="qna-search-container">
         <!-- Question Input -->
         <div class="question-input-section">
