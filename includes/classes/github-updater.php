@@ -1,7 +1,7 @@
 <?php
 /*
  * A plugin updater helper class for WordPress plugins hosted on GitHub.
- * Version: 1.5
+ * Version: 1.6
  * Author - Misha Rudrastyh, changes by Nimrod Cohen, Oleg Shumar, Milen Petrov
  * Author URI - https://rudrastyh.com
  * License: GPL
@@ -23,6 +23,7 @@ class GitHubPluginUpdater {
   private $latest_release = null;
   private $plugin_file = null;
   private $plugin_data = null;
+  private static $http_filter_registered = false;
 
   private function get_plugin_data() {
     if ($this->plugin_data) {
@@ -46,6 +47,34 @@ class GitHubPluginUpdater {
     add_action('admin_post_' . $this->plugin_slug . '_clear_cache', [$this, 'clear_latest_release_cache']);
     add_action('admin_notices', [$this, 'display_cache_cleared_message']);
     add_filter('plugin_action_links_' . $this->plugin_file, [$this, 'add_clear_cache_link']);
+
+    if (!self::$http_filter_registered && self::get_token()) {
+      add_filter('http_request_args', [__CLASS__, 'inject_github_auth'], 10, 2);
+      self::$http_filter_registered = true;
+    }
+  }
+
+  private static function get_token() {
+    if (defined('GITHUB_UPDATER_TOKEN') && GITHUB_UPDATER_TOKEN) {
+      return GITHUB_UPDATER_TOKEN;
+    }
+    return null;
+  }
+
+  public static function inject_github_auth($parsed_args, $url) {
+    $host = parse_url($url, PHP_URL_HOST);
+    if (!in_array($host, ['api.github.com', 'codeload.github.com', 'github.com'], true)) {
+      return $parsed_args;
+    }
+    $token = self::get_token();
+    if (!$token) {
+      return $parsed_args;
+    }
+    if (!isset($parsed_args['headers'])) {
+      $parsed_args['headers'] = [];
+    }
+    $parsed_args['headers']['Authorization'] = 'Bearer ' . $token;
+    return $parsed_args;
   }
 
   public function add_clear_cache_link($links) {
@@ -128,8 +157,15 @@ class GitHubPluginUpdater {
 
     $github_api_url = 'https://api.github.com/repos/' . $this->plugin_data['AuthorName'] . '/' . $this->plugin_slug . '/releases/latest';
 
+    $headers = [
+      'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url(),
+    ];
+    $token = self::get_token();
+    if ($token) {
+      $headers['Authorization'] = 'Bearer ' . $token;
+    }
     $response = wp_remote_get($github_api_url, [
-      'user-agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url(),
+      'headers' => $headers,
     ]);
     if (is_wp_error($response) || 200 !== wp_remote_retrieve_response_code($response)) {
       return false;
